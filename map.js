@@ -11,6 +11,10 @@ const config = {
 // Active tool state
 let activeTool = 'reveal';
 
+// Markers storage
+let markers = [];
+let markerIdCounter = 0;
+
 // Initialize SVG and dimensions
 const container = d3.select("#map-container");
 const width = window.innerWidth;
@@ -48,6 +52,7 @@ const revealGroup = mask.append("g")
 // Map layers
 const mapGroup = g.append("g").attr("class", "map-layer");
 const fogGroup = g.append("g").attr("class", "fog-layer");
+const markersGroup = g.append("g").attr("class", "markers-layer"); // Layer for player/enemy markers
 
 // Brush size indicator circle
 const brushIndicator = g.append("circle")
@@ -256,6 +261,102 @@ function addFog(x, y) {
         .attr("opacity", 1);
 }
 
+// Function to add a marker (player/enemy circle)
+function addMarker(x, y) {
+    const markerId = `marker-${markerIdCounter++}`;
+    const markerRadius = Math.min(mapDimensions.width, mapDimensions.height) / 50; // Scale to map size (smaller)
+
+    // Create marker circle
+    const markerCircle = markersGroup.append("circle")
+        .attr("id", markerId)
+        .attr("cx", x)
+        .attr("cy", y)
+        .attr("r", 0)
+        .attr("fill", "rgba(100, 150, 255, 0.5)") // Blue semi-transparent
+        .attr("stroke", "#2a5caa")
+        .attr("stroke-width", 3)
+        .attr("class", "marker")
+        .style("cursor", "grab");
+
+    // Animate marker appearance
+    markerCircle.transition()
+        .duration(200)
+        .attr("r", markerRadius);
+
+    // Store marker data
+    const markerData = { id: markerId, x, y, element: markerCircle };
+    markers.push(markerData);
+
+    // Add drag behavior to marker
+    const drag = d3.drag()
+        .on("start", function(event) {
+            d3.select(this).style("cursor", "grabbing");
+            markerData.isDragging = true;
+        })
+        .on("drag", function(event) {
+            const [newX, newY] = d3.pointer(event, g.node());
+            d3.select(this)
+                .attr("cx", newX)
+                .attr("cy", newY);
+            markerData.x = newX;
+            markerData.y = newY;
+        })
+        .on("end", function(event) {
+            d3.select(this).style("cursor", "grab");
+            // Delay clearing isDragging flag to prevent click event
+            setTimeout(() => {
+                markerData.isDragging = false;
+            }, 50);
+        });
+
+    markerCircle.call(drag);
+
+    return markerData;
+}
+
+// Function to check if clicking on an existing marker
+function findMarkerAtPosition(x, y) {
+    const markerRadius = Math.min(mapDimensions.width, mapDimensions.height) / 50;
+    const clickRadius = markerRadius * 1.2; // Hit area
+
+    // Find markers within click radius
+    const foundMarker = markers.find(marker => {
+        const dx = marker.x - x;
+        const dy = marker.y - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance <= clickRadius;
+    });
+
+    return foundMarker;
+}
+
+// Function to remove marker at position
+function removeMarker(x, y) {
+    const markerRadius = Math.min(mapDimensions.width, mapDimensions.height) / 50;
+    const clickRadius = markerRadius * 1.5; // Slightly larger hit area
+
+    // Find markers within click radius
+    const markersToRemove = markers.filter(marker => {
+        const dx = marker.x - x;
+        const dy = marker.y - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        return distance <= clickRadius;
+    });
+
+    // Remove found markers
+    markersToRemove.forEach(marker => {
+        // Animate marker removal
+        marker.element.transition()
+            .duration(200)
+            .attr("r", 0)
+            .style("opacity", 0)
+            .remove();
+
+        // Remove from markers array
+        markers = markers.filter(m => m.id !== marker.id);
+    });
+}
+
 // Zoom behavior with filter to only pan on Ctrl+drag
 const zoom = d3.zoom()
     .scaleExtent([config.minZoom, config.maxZoom])
@@ -300,9 +401,22 @@ let isDragging = false;
 let lastRevealTime = 0;
 const revealThrottle = 50; // milliseconds
 
-// Prevent context menu on right click
+// Handle right-click (contextmenu) separately
 svg.on("contextmenu", function(event) {
     event.preventDefault();
+
+    // Only act if not in panning mode
+    if (!event.ctrlKey) {
+        const [x, y] = d3.pointer(event, g.node());
+
+        if (activeTool === 'reveal') {
+            // Right click - add fog
+            addFog(x, y);
+        } else if (activeTool === 'tool2') {
+            // Right click - remove marker
+            removeMarker(x, y);
+        }
+    }
 });
 
 svg.on("mousedown touchstart", function(event) {
@@ -354,23 +468,31 @@ svg.on("mousemove touchmove", function(event) {
                 revealArea(x, y);
             }
         }
+        // Tool 2 doesn't do anything on drag, only on click
     }
 });
 
 svg.on("click", function(event) {
-    // Only reveal/fog on click if not dragging and Ctrl is not pressed
+    // Only act on LEFT click if not dragging and Ctrl is not pressed
     if (!isDragging && !event.ctrlKey) {
+        const [x, y] = d3.pointer(event, g.node());
+
         if (activeTool === 'reveal') {
-            const [x, y] = d3.pointer(event, g.node());
-            if (event.button === 2) {
-                // Right click - add fog
-                addFog(x, y);
-            } else {
-                // Left click - reveal
-                revealArea(x, y);
+            // Left click - reveal
+            revealArea(x, y);
+        } else if (activeTool === 'tool2') {
+            // Check if clicking on existing marker
+            const existingMarker = findMarkerAtPosition(x, y);
+
+            // Only add new marker if not clicking on existing one and not dragging
+            if (!existingMarker || (existingMarker && !existingMarker.isDragging)) {
+                // Don't add if we just finished dragging a marker
+                const anyMarkerDragging = markers.some(m => m.isDragging);
+                if (!anyMarkerDragging && !existingMarker) {
+                    addMarker(x, y);
+                }
             }
         }
-        // Tool 2 functionality will go here
     }
 });
 
