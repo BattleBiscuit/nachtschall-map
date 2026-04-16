@@ -420,7 +420,7 @@ function removeMarker(x, y) {
 
 // Zoom behavior with filter to only pan on Ctrl+drag
 const zoom = d3.zoom()
-    .scaleExtent([config.minZoom, config.maxZoom])
+    .scaleExtent([config.initialZoom, config.maxZoom])
     .filter((event) => {
         // Block wheel zoom if Shift is pressed (for brush size adjustment)
         if (event.type === 'wheel' && event.shiftKey) return false;
