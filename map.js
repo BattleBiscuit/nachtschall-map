@@ -30,8 +30,34 @@ const g = svg.append("g");
 // Store revealed circles
 const revealedAreas = [];
 
-// Create defs for mask
+// Create defs for mask and filters
 const defs = svg.append("defs");
+
+// Create extreme blur + displacement filter for fog of war
+const blurFilter = defs.append("filter")
+    .attr("id", "fog-blur");
+
+// Create turbulence for displacement
+blurFilter.append("feTurbulence")
+    .attr("type", "turbulence")
+    .attr("baseFrequency", "0.015")
+    .attr("numOctaves", "4")
+    .attr("result", "turbulence");
+
+// Displace the image heavily
+blurFilter.append("feDisplacementMap")
+    .attr("in", "SourceGraphic")
+    .attr("in2", "turbulence")
+    .attr("scale", "80")
+    .attr("xChannelSelector", "R")
+    .attr("yChannelSelector", "G")
+    .attr("result", "displaced");
+
+// Apply extreme blur to the displaced image
+blurFilter.append("feGaussianBlur")
+    .attr("in", "displaced")
+    .attr("stdDeviation", "60")
+    .attr("result", "blurred");
 
 // Create mask for fog of war
 const mask = defs.append("mask")
@@ -111,16 +137,19 @@ function createRabenfelsMap() {
 
 createRabenfelsMap();
 
-// Create fog overlay using custom image with same dimensions as map
+// Create fog overlay using heavily blurred version of the map
+// Make it larger than the actual map to avoid edge artifacts
+const fogPadding = 0.2; // 20% padding
 fogGroup.append("image")
-    .attr("href", "fog_of_war.png")
-    .attr("x", mapDimensions.x)
-    .attr("y", mapDimensions.y)
-    .attr("width", mapDimensions.width)
-    .attr("height", mapDimensions.height)
-    .attr("preserveAspectRatio", "xMidYMid meet")
+    .attr("href", "rabenfels-map.png")
+    .attr("x", mapDimensions.x - mapDimensions.width * fogPadding)
+    .attr("y", mapDimensions.y - mapDimensions.height * fogPadding)
+    .attr("width", mapDimensions.width * (1 + fogPadding * 2))
+    .attr("height", mapDimensions.height * (1 + fogPadding * 2))
+    .attr("preserveAspectRatio", "none") // Stretch to fill
     .attr("class", "fog-overlay")
-    .attr("mask", "url(#fog-mask)");
+    .attr("filter", "url(#fog-blur)") // Apply extreme blur
+    .attr("mask", "url(#fog-mask)");  // Apply mask for reveals
 
 
 // Function to reveal area at position with wonky fading effect
@@ -513,15 +542,17 @@ window.addEventListener("resize", () => {
     createRabenfelsMap();
 
     // Redraw fog overlay with new dimensions
+    const fogPadding = 0.2;
     fogGroup.selectAll("image").remove();
     fogGroup.append("image")
-        .attr("href", "fog_of_war.png")
-        .attr("x", mapDimensions.x)
-        .attr("y", mapDimensions.y)
-        .attr("width", mapDimensions.width)
-        .attr("height", mapDimensions.height)
-        .attr("preserveAspectRatio", "xMidYMid meet")
+        .attr("href", "rabenfels-map.png")
+        .attr("x", mapDimensions.x - mapDimensions.width * fogPadding)
+        .attr("y", mapDimensions.y - mapDimensions.height * fogPadding)
+        .attr("width", mapDimensions.width * (1 + fogPadding * 2))
+        .attr("height", mapDimensions.height * (1 + fogPadding * 2))
+        .attr("preserveAspectRatio", "none")
         .attr("class", "fog-overlay")
+        .attr("filter", "url(#fog-blur)")
         .attr("mask", "url(#fog-mask)");
 });
 
