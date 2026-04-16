@@ -325,7 +325,8 @@ function addMarker(x, y, color = null) {
         .attr("stroke-width", 3)
         .attr("class", "marker")
         .attr("data-color", markerColor)
-        .style("cursor", "grab");
+        .style("cursor", "inherit")
+        .style("pointer-events", "auto");
 
     // Animate marker appearance
     markerCircle.transition()
@@ -336,28 +337,38 @@ function addMarker(x, y, color = null) {
     const markerData = { id: markerId, x, y, color: markerColor, element: markerCircle };
     markers.push(markerData);
 
-    // Add drag behavior to marker
+    // Add drag behavior to marker (only active in marker mode)
     const drag = d3.drag()
+        .filter(function(event) {
+            // Only allow drag when in marker mode
+            return activeTool === 'tool2';
+        })
         .on("start", function(event) {
-            d3.select(this).style("cursor", "grabbing");
-            markerData.isDragging = true;
+            if (activeTool === 'tool2') {
+                d3.select(this).style("cursor", "grabbing");
+                markerData.isDragging = true;
+            }
         })
         .on("drag", function(event) {
-            const [newX, newY] = d3.pointer(event, g.node());
-            d3.select(this)
-                .attr("cx", newX)
-                .attr("cy", newY);
-            markerData.x = newX;
-            markerData.y = newY;
+            if (activeTool === 'tool2') {
+                const [newX, newY] = d3.pointer(event, g.node());
+                d3.select(this)
+                    .attr("cx", newX)
+                    .attr("cy", newY);
+                markerData.x = newX;
+                markerData.y = newY;
+            }
         })
         .on("end", function(event) {
-            d3.select(this).style("cursor", "grab");
-            // Save state after dragging
-            saveToLocalStorage();
-            // Delay clearing isDragging flag to prevent click event
-            setTimeout(() => {
-                markerData.isDragging = false;
-            }, 50);
+            if (activeTool === 'tool2') {
+                d3.select(this).style("cursor", "grab");
+                // Save state after dragging
+                saveToLocalStorage();
+                // Delay clearing isDragging flag to prevent click event
+                setTimeout(() => {
+                    markerData.isDragging = false;
+                }, 50);
+            }
         });
 
     markerCircle.call(drag);
@@ -728,12 +739,20 @@ function setActiveTool(tool) {
         tool2Btn.title = 'Markers Tool - Add/Remove tokens';
         colorPalette.classList.remove('visible');
         brushControl.classList.add('visible');
+        // Make markers non-interactive in reveal mode
+        markersGroup.selectAll('.marker')
+            .style("cursor", "inherit")
+            .style("pointer-events", "none");
     } else if (tool === 'tool2') {
         tool2Btn.classList.add('active');
         tool2Btn.title = 'Markers Tool (Active)';
         revealToolBtn.title = 'Reveal Tool';
         colorPalette.classList.add('visible');
         brushControl.classList.remove('visible');
+        // Make markers interactive with grab cursor in marker mode
+        markersGroup.selectAll('.marker')
+            .style("cursor", "grab")
+            .style("pointer-events", "auto");
     }
 }
 
