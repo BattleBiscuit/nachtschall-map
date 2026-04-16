@@ -78,10 +78,61 @@
         .tool-button:active {
             transform: scale(0.95);
         }
+
+        /* Color palette styles */
+        #color-palette {
+            position: fixed;
+            top: 20px;
+            right: 90px;
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 1000;
+        }
+
+        #color-palette.visible {
+            display: flex;
+        }
+
+        .color-button {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .color-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .color-button.active {
+            border-width: 4px;
+            border-color: white;
+            box-shadow: 0 0 0 2px #333, 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+
+        .color-button:active {
+            transform: scale(0.95);
+        }
     </style>
 </head>
 <body>
     <div id="map-container"></div>
+
+    <div id="color-palette">
+        <button class="color-button active" data-color="blue" style="background-color: rgba(100, 150, 255, 0.8);" title="Blue"></button>
+        <button class="color-button" data-color="red" style="background-color: rgba(255, 100, 100, 0.8);" title="Red"></button>
+        <button class="color-button" data-color="green" style="background-color: rgba(100, 200, 100, 0.8);" title="Green"></button>
+        <button class="color-button" data-color="yellow" style="background-color: rgba(255, 220, 100, 0.8);" title="Yellow"></button>
+        <button class="color-button" data-color="purple" style="background-color: rgba(180, 100, 255, 0.8);" title="Purple"></button>
+        <button class="color-button" data-color="orange" style="background-color: rgba(255, 150, 80, 0.8);" title="Orange"></button>
+        <button class="color-button" data-color="cyan" style="background-color: rgba(100, 220, 220, 0.8);" title="Cyan"></button>
+        <button class="color-button" data-color="pink" style="background-color: rgba(255, 150, 200, 0.8);" title="Pink"></button>
+    </div>
 
     <div id="tool-overlay">
         <button class="tool-button active" id="reveal-tool" title="Reveal Tool (Active)">

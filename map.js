@@ -18,6 +18,20 @@ let markerIdCounter = 0;
 // Storage for fog of war reveal shapes
 let revealShapes = [];
 
+// Color palette for markers
+const markerColors = {
+    blue: { fill: 'rgba(100, 150, 255, 0.5)', stroke: '#2a5caa' },
+    red: { fill: 'rgba(255, 100, 100, 0.5)', stroke: '#aa2a2a' },
+    green: { fill: 'rgba(100, 200, 100, 0.5)', stroke: '#2a8a2a' },
+    yellow: { fill: 'rgba(255, 220, 100, 0.5)', stroke: '#aa9a2a' },
+    purple: { fill: 'rgba(180, 100, 255, 0.5)', stroke: '#6a2aaa' },
+    orange: { fill: 'rgba(255, 150, 80, 0.5)', stroke: '#aa6a2a' },
+    cyan: { fill: 'rgba(100, 220, 220, 0.5)', stroke: '#2a9aaa' },
+    pink: { fill: 'rgba(255, 150, 200, 0.5)', stroke: '#aa5a7a' }
+};
+
+let currentMarkerColor = 'blue';
+
 // Initialize SVG and dimensions
 const container = d3.select("#map-container");
 const width = window.innerWidth;
@@ -294,9 +308,11 @@ function addFog(x, y) {
 }
 
 // Function to add a marker (player/enemy circle)
-function addMarker(x, y) {
+function addMarker(x, y, color = null) {
     const markerId = `marker-${markerIdCounter++}`;
     const markerRadius = Math.min(mapDimensions.width, mapDimensions.height) / 50; // Scale to map size (smaller)
+    const markerColor = color || currentMarkerColor;
+    const colors = markerColors[markerColor];
 
     // Create marker circle
     const markerCircle = markersGroup.append("circle")
@@ -304,10 +320,11 @@ function addMarker(x, y) {
         .attr("cx", x)
         .attr("cy", y)
         .attr("r", 0)
-        .attr("fill", "rgba(100, 150, 255, 0.5)") // Blue semi-transparent
-        .attr("stroke", "#2a5caa")
+        .attr("fill", colors.fill)
+        .attr("stroke", colors.stroke)
         .attr("stroke-width", 3)
         .attr("class", "marker")
+        .attr("data-color", markerColor)
         .style("cursor", "grab");
 
     // Animate marker appearance
@@ -316,7 +333,7 @@ function addMarker(x, y) {
         .attr("r", markerRadius);
 
     // Store marker data
-    const markerData = { id: markerId, x, y, element: markerCircle };
+    const markerData = { id: markerId, x, y, color: markerColor, element: markerCircle };
     markers.push(markerData);
 
     // Add drag behavior to marker
@@ -575,7 +592,7 @@ window.addEventListener("resize", () => {
 function saveToLocalStorage() {
     const state = {
         revealShapes: revealShapes,
-        markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id }))
+        markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id, color: m.color }))
     };
     localStorage.setItem('mapState', JSON.stringify(state));
 }
@@ -667,7 +684,7 @@ function loadFromLocalStorage() {
         // Restore markers
         if (state.markers) {
             state.markers.forEach(markerData => {
-                const marker = addMarker(markerData.x, markerData.y);
+                const marker = addMarker(markerData.x, markerData.y, markerData.color || 'blue');
                 marker.isLoading = true; // Mark as loading to prevent saving during restore
             });
         }
@@ -695,14 +712,19 @@ function setActiveTool(tool) {
     revealToolBtn.classList.remove('active');
     tool2Btn.classList.remove('active');
 
+    // Show/hide color palette based on active tool
+    const colorPalette = document.getElementById('color-palette');
+
     if (tool === 'reveal') {
         revealToolBtn.classList.add('active');
         revealToolBtn.title = 'Reveal Tool (Active)';
         tool2Btn.title = 'Markers Tool - Add/Remove tokens';
+        colorPalette.classList.remove('visible');
     } else if (tool === 'tool2') {
         tool2Btn.classList.add('active');
         tool2Btn.title = 'Markers Tool (Active)';
         revealToolBtn.title = 'Reveal Tool';
+        colorPalette.classList.add('visible');
     }
 }
 
@@ -737,4 +759,18 @@ tool2Btn.addEventListener('click', (e) => {
 resetBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     resetMap();
+});
+
+// Color palette functionality
+const colorButtons = document.querySelectorAll('.color-button');
+colorButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Remove active class from all buttons
+        colorButtons.forEach(b => b.classList.remove('active'));
+        // Add active class to clicked button
+        btn.classList.add('active');
+        // Update current marker color
+        currentMarkerColor = btn.dataset.color;
+    });
 });
