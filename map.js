@@ -333,8 +333,27 @@ function addMarker(x, y, color = null) {
         .duration(200)
         .attr("r", markerRadius);
 
+    // Create text label for marker name
+    const markerText = markersGroup.append("text")
+        .attr("id", `${markerId}-text`)
+        .attr("x", x)
+        .attr("y", y + markerRadius + 15)
+        .attr("text-anchor", "middle")
+        .attr("class", "marker-label")
+        .attr("fill", "#fff")
+        .attr("font-size", "12px")
+        .attr("font-family", "sans-serif")
+        .attr("font-weight", "bold")
+        .attr("stroke", "#000")
+        .attr("stroke-width", "3")
+        .attr("paint-order", "stroke")
+        .style("cursor", "inherit")
+        .style("pointer-events", "none")
+        .style("user-select", "none")
+        .text("");
+
     // Store marker data
-    const markerData = { id: markerId, x, y, color: markerColor, element: markerCircle };
+    const markerData = { id: markerId, x, y, color: markerColor, name: "", element: markerCircle, textElement: markerText };
     markers.push(markerData);
 
     // Add drag behavior to marker (only active in marker mode)
@@ -355,6 +374,10 @@ function addMarker(x, y, color = null) {
                 d3.select(this)
                     .attr("cx", newX)
                     .attr("cy", newY);
+                // Update text position
+                markerData.textElement
+                    .attr("x", newX)
+                    .attr("y", newY + markerRadius + 15);
                 markerData.x = newX;
                 markerData.y = newY;
             }
@@ -372,6 +395,19 @@ function addMarker(x, y, color = null) {
         });
 
     markerCircle.call(drag);
+
+    // Add double-click event to edit marker name
+    markerCircle.on("dblclick", function(event) {
+        if (activeTool === 'tool2') {
+            event.stopPropagation();
+            const newName = prompt("Enter marker name:", markerData.name || "");
+            if (newName !== null) {
+                markerData.name = newName;
+                markerData.textElement.text(newName);
+                saveToLocalStorage();
+            }
+        }
+    });
 
     // Save state after adding marker (but only if not loading from storage)
     if (!markerData.isLoading) {
@@ -418,6 +454,9 @@ function removeMarker(x, y) {
             .attr("r", 0)
             .style("opacity", 0)
             .remove();
+
+        // Remove text label
+        marker.textElement.remove();
 
         // Remove from markers array
         markers = markers.filter(m => m.id !== marker.id);
@@ -601,7 +640,7 @@ window.addEventListener("resize", () => {
 function saveToLocalStorage() {
     const state = {
         revealShapes: revealShapes,
-        markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id, color: m.color })),
+        markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id, color: m.color, name: m.name || "" })),
         brushSize: config.revealRadius
     };
     localStorage.setItem('mapState', JSON.stringify(state));
@@ -703,6 +742,11 @@ function loadFromLocalStorage() {
             state.markers.forEach(markerData => {
                 const marker = addMarker(markerData.x, markerData.y, markerData.color || 'blue');
                 marker.isLoading = true; // Mark as loading to prevent saving during restore
+                // Restore marker name
+                if (markerData.name) {
+                    marker.name = markerData.name;
+                    marker.textElement.text(markerData.name);
+                }
             });
         }
     } catch (e) {
