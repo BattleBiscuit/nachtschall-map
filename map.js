@@ -18,6 +18,18 @@ let markerIdCounter = 0;
 // Storage for fog of war reveal shapes
 let revealShapes = [];
 
+// Drawing storage
+let drawings = [];
+let drawingIdCounter = 0;
+let currentDrawing = null;
+let isDrawing = false;
+
+// Undo/Redo system
+let historyStack = [];
+let historyIndex = -1;
+const MAX_HISTORY = 50;
+let isUndoRedoAction = false; // Flag to prevent undo/redo from adding to history
+
 // Color palette for markers
 const markerColors = {
     blue: { fill: 'rgba(100, 150, 255, 0.5)', stroke: '#2a5caa' },
@@ -95,6 +107,7 @@ const revealGroup = mask.append("g")
 // Map layers
 const mapGroup = g.append("g").attr("class", "map-layer");
 const markersGroup = g.append("g").attr("class", "markers-layer"); // Layer for player/enemy markers
+const drawingGroup = g.append("g").attr("class", "drawing-layer"); // Layer for freehand drawings
 const fogGroup = g.append("g").attr("class", "fog-layer");
 
 // Brush size indicator circle
@@ -232,7 +245,16 @@ function revealArea(x, y) {
     revealedAreas.push({ x, y, radius: config.revealRadius });
 
     // Store reveal data for saving
-    revealShapes.push({ x, y, radius: config.revealRadius, pathData, gradientId });
+    const revealData = { x, y, radius: config.revealRadius, pathData, gradientId };
+    revealShapes.push(revealData);
+
+    // Add to history
+    addToHistory({
+        type: 'reveal',
+        action: 'add',
+        data: revealData
+    });
+
     saveToLocalStorage();
 }
 
@@ -303,7 +325,16 @@ function addFog(x, y) {
         .attr("opacity", 1);
 
     // Store fog data for saving
-    revealShapes.push({ x, y, radius: config.revealRadius, pathData, gradientId, isFog: true });
+    const fogData = { x, y, radius: config.revealRadius, pathData, gradientId, isFog: true };
+    revealShapes.push(fogData);
+
+    // Add to history
+    addToHistory({
+        type: 'fog',
+        action: 'add',
+        data: fogData
+    });
+
     saveToLocalStorage();
 }
 
@@ -494,6 +525,13 @@ function addMarker(x, y, color = null) {
 
     // Save state after adding marker (but only if not loading from storage)
     if (!markerData.isLoading) {
+        // Add to history
+        addToHistory({
+            type: 'marker',
+            action: 'add',
+            data: { id: markerId, x, y, color: markerColor, name: "" }
+        });
+
         saveToLocalStorage();
     }
 
@@ -531,6 +569,13 @@ function removeMarker(x, y) {
 
     // Remove found markers
     markersToRemove.forEach(marker => {
+        // Add to history before removing
+        addToHistory({
+            type: 'marker',
+            action: 'remove',
+            data: { id: marker.id, x: marker.x, y: marker.y, color: marker.color, name: marker.name || "" }
+        });
+
         // Animate marker removal
         marker.element.transition()
             .duration(200)
@@ -549,6 +594,101 @@ function removeMarker(x, y) {
     if (markersToRemove.length > 0) {
         saveToLocalStorage();
     }
+}
+
+// Drawing functions
+function startDrawing(x, y) {
+    if (activeTool !== 'draw') return;
+
+    isDrawing = true;
+    const drawingId = `drawing-${drawingIdCounter++}`;
+
+    currentDrawing = {
+        id: drawingId,
+        points: [[x, y]],
+        color: currentMarkerColor, // Reuse marker color picker
+        strokeWidth: 3,
+        path: null
+    };
+}
+
+function continueDrawing(x, y) {
+    if (!isDrawing || activeTool !== 'draw' || !currentDrawing) return;
+
+    currentDrawing.points.push([x, y]);
+
+    // Generate smooth path from points
+    const pathData = generateSmoothPath(currentDrawing.points);
+
+    // Update or create path element
+    if (!currentDrawing.path) {
+        currentDrawing.path = drawingGroup.append("path")
+            .attr("id", currentDrawing.id)
+            .attr("fill", "none")
+            .attr("stroke", markerColors[currentDrawing.color].stroke)
+            .attr("stroke-width", currentDrawing.strokeWidth)
+            .attr("stroke-linecap", "round")
+            .attr("stroke-linejoin", "round")
+            .attr("class", "drawing-path");
+    }
+
+    currentDrawing.path.attr("d", pathData);
+}
+
+function endDrawing() {
+    if (!isDrawing || !currentDrawing) return;
+
+    isDrawing = false;
+
+    if (currentDrawing.points.length > 1) {
+        // Save the drawing
+        drawings.push({
+            id: currentDrawing.id,
+            points: currentDrawing.points,
+            color: currentDrawing.color,
+            strokeWidth: currentDrawing.strokeWidth,
+            pathData: generateSmoothPath(currentDrawing.points)
+        });
+
+        // Add to history
+        addToHistory({
+            type: 'drawing',
+            action: 'add',
+            data: drawings[drawings.length - 1]
+        });
+
+        saveToLocalStorage();
+    } else {
+        // Remove if too short
+        if (currentDrawing.path) {
+            currentDrawing.path.remove();
+        }
+    }
+
+    currentDrawing = null;
+}
+
+function generateSmoothPath(points) {
+    if (points.length < 2) return "";
+
+    let path = `M ${points[0][0]},${points[0][1]}`;
+
+    if (points.length === 2) {
+        path += ` L ${points[1][0]},${points[1][1]}`;
+    } else {
+        // Use quadratic curves for smoothing
+        for (let i = 1; i < points.length - 1; i++) {
+            const xc = (points[i][0] + points[i + 1][0]) / 2;
+            const yc = (points[i][1] + points[i + 1][1]) / 2;
+            path += ` Q ${points[i][0]},${points[i][1]} ${xc},${yc}`;
+        }
+        // Add final point
+        const last = points[points.length - 1];
+        const secondLast = points[points.length - 2];
+        path += ` Q ${secondLast[0]},${secondLast[1]} ${last[0]},${last[1]}`;
+    }
+
+    return path;
 }
 
 // Track middle mouse button state for panning
@@ -615,6 +755,12 @@ svg.on("mousedown touchstart", function(event) {
         } else if (event.button === 0) {
             // Left mouse button
             isMouseDown = true;
+
+            // Start drawing if in draw mode
+            if (activeTool === 'draw') {
+                const [x, y] = d3.pointer(event, g.node());
+                startDrawing(x, y);
+            }
         }
         isDragging = false;
     }
@@ -626,6 +772,12 @@ svg.on("mouseup touchend", function(event) {
         isMiddleMouseDown = false;
         container.node().classList.remove('panning');
     }
+
+    // End drawing if in draw mode
+    if (activeTool === 'draw' && isDrawing) {
+        endDrawing();
+    }
+
     isMouseDown = false;
     isRightMouseDown = false;
 });
@@ -641,6 +793,12 @@ svg.on("mousemove touchmove", function(event) {
             .style("opacity", 0.6);
     } else {
         brushIndicator.style("opacity", 0);
+    }
+
+    // Continue drawing if in draw mode
+    if (activeTool === 'draw' && isDrawing) {
+        continueDrawing(x, y);
+        return;
     }
 
     // Only reveal/fog if mouse is down and Ctrl is not pressed (not panning)
@@ -724,6 +882,7 @@ function saveToLocalStorage() {
     const state = {
         revealShapes: revealShapes,
         markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id, color: m.color, name: m.name || "" })),
+        drawings: drawings,
         brushSize: config.revealRadius
     };
     localStorage.setItem('mapState', JSON.stringify(state));
@@ -832,6 +991,24 @@ function loadFromLocalStorage() {
                 }
             });
         }
+
+        // Restore drawings
+        if (state.drawings) {
+            state.drawings.forEach(drawingData => {
+                drawingGroup.append("path")
+                    .attr("id", drawingData.id)
+                    .attr("d", drawingData.pathData)
+                    .attr("fill", "none")
+                    .attr("stroke", markerColors[drawingData.color].stroke)
+                    .attr("stroke-width", drawingData.strokeWidth)
+                    .attr("stroke-linecap", "round")
+                    .attr("stroke-linejoin", "round")
+                    .attr("class", "drawing-path");
+
+                drawings.push(drawingData);
+                drawingIdCounter = Math.max(drawingIdCounter, parseInt(drawingData.id.split('-')[1]) + 1);
+            });
+        }
     } catch (e) {
         console.error('Failed to load map state:', e);
     }
@@ -847,7 +1024,10 @@ setTimeout(() => {
 // Tool button functionality
 const revealToolBtn = document.getElementById('reveal-tool');
 const tool2Btn = document.getElementById('tool-2');
+const drawToolBtn = document.getElementById('draw-tool');
 const resetBtn = document.getElementById('reset-btn');
+const undoBtn = document.getElementById('undo-btn');
+const redoBtn = document.getElementById('redo-btn');
 
 function setActiveTool(tool) {
     activeTool = tool;
@@ -855,6 +1035,7 @@ function setActiveTool(tool) {
     // Update button states
     revealToolBtn.classList.remove('active');
     tool2Btn.classList.remove('active');
+    drawToolBtn.classList.remove('active');
 
     // Show/hide color palette and brush control based on active tool
     const colorPalette = document.getElementById('color-palette');
@@ -864,6 +1045,7 @@ function setActiveTool(tool) {
         revealToolBtn.classList.add('active');
         revealToolBtn.title = 'Reveal Tool (Active)';
         tool2Btn.title = 'Markers Tool - Add/Remove tokens';
+        drawToolBtn.title = 'Drawing Tool - Freehand drawing';
         colorPalette.classList.remove('visible');
         brushControl.classList.add('visible');
         // Make markers non-interactive in reveal mode
@@ -874,17 +1056,29 @@ function setActiveTool(tool) {
         tool2Btn.classList.add('active');
         tool2Btn.title = 'Markers Tool (Active)';
         revealToolBtn.title = 'Reveal Tool';
+        drawToolBtn.title = 'Drawing Tool - Freehand drawing';
         colorPalette.classList.add('visible');
         brushControl.classList.remove('visible');
         // Make markers interactive with grab cursor in marker mode
         markersGroup.selectAll('.marker')
             .style("cursor", "grab")
             .style("pointer-events", "auto");
+    } else if (tool === 'draw') {
+        drawToolBtn.classList.add('active');
+        drawToolBtn.title = 'Drawing Tool (Active)';
+        revealToolBtn.title = 'Reveal Tool';
+        tool2Btn.title = 'Markers Tool - Add/Remove tokens';
+        colorPalette.classList.add('visible');
+        brushControl.classList.remove('visible');
+        // Make markers non-interactive in draw mode
+        markersGroup.selectAll('.marker')
+            .style("cursor", "inherit")
+            .style("pointer-events", "none");
     }
 }
 
 function resetMap() {
-    if (confirm('Are you sure you want to reset the map? This will clear all fog reveals and markers.')) {
+    if (confirm('Are you sure you want to reset the map? This will clear all fog reveals, markers, and drawings.')) {
         // Clear localStorage
         localStorage.removeItem('mapState');
 
@@ -897,7 +1091,17 @@ function resetMap() {
         markers = [];
         markerIdCounter = 0;
 
-        alert('Map reset! All fog and markers cleared.');
+        // Clear all drawings
+        drawingGroup.selectAll("*").remove();
+        drawings = [];
+        drawingIdCounter = 0;
+
+        // Clear history
+        historyStack = [];
+        historyIndex = -1;
+        updateUndoRedoButtons();
+
+        alert('Map reset! All fog, markers, and drawings cleared.');
     }
 }
 
@@ -923,10 +1127,204 @@ tool2Btn.addEventListener('click', (e) => {
     }
 });
 
+drawToolBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (activeTool === 'draw') {
+        // Toggle color palette visibility
+        const colorPalette = document.getElementById('color-palette');
+        colorPalette.classList.toggle('visible');
+    } else {
+        setActiveTool('draw');
+    }
+});
+
 resetBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     resetMap();
 });
+
+// Undo/Redo functionality
+function addToHistory(action) {
+    // Don't add to history if this is an undo/redo action
+    if (isUndoRedoAction) return;
+
+    // Remove any redo history when a new action is performed
+    historyStack = historyStack.slice(0, historyIndex + 1);
+
+    // Add new action
+    historyStack.push(action);
+
+    // Limit history size
+    if (historyStack.length > MAX_HISTORY) {
+        historyStack.shift();
+    } else {
+        historyIndex++;
+    }
+
+    updateUndoRedoButtons();
+}
+
+function undo() {
+    if (historyIndex < 0) return;
+
+    isUndoRedoAction = true;
+    const action = historyStack[historyIndex];
+
+    switch (action.type) {
+        case 'reveal':
+            if (action.action === 'add') {
+                // Remove the reveal shape
+                revealGroup.select(`#${action.data.gradientId}`).remove();
+                revealGroup.selectAll(`path[fill*="${action.data.gradientId}"]`).remove();
+                revealShapes = revealShapes.filter(s => s.gradientId !== action.data.gradientId);
+            }
+            break;
+
+        case 'fog':
+            if (action.action === 'add') {
+                // Remove the fog shape
+                revealGroup.select(`#${action.data.gradientId}`).remove();
+                revealGroup.selectAll(`path[fill*="${action.data.gradientId}"]`).remove();
+                revealShapes = revealShapes.filter(s => s.gradientId !== action.data.gradientId);
+            }
+            break;
+
+        case 'marker':
+            if (action.action === 'add') {
+                // Remove the marker
+                const marker = markers.find(m => m.id === action.data.id);
+                if (marker) {
+                    marker.element.remove();
+                    marker.textElement.remove();
+                    markers = markers.filter(m => m.id !== action.data.id);
+                }
+            } else if (action.action === 'remove') {
+                // Re-add the marker
+                const restored = addMarker(action.data.x, action.data.y, action.data.color);
+                restored.name = action.data.name;
+                restored.textElement.text(action.data.name);
+            }
+            break;
+
+        case 'drawing':
+            if (action.action === 'add') {
+                // Remove the drawing
+                drawingGroup.select(`#${action.data.id}`).remove();
+                drawings = drawings.filter(d => d.id !== action.data.id);
+            }
+            break;
+    }
+
+    historyIndex--;
+    isUndoRedoAction = false;
+    saveToLocalStorage();
+    updateUndoRedoButtons();
+}
+
+function redo() {
+    if (historyIndex >= historyStack.length - 1) return;
+
+    isUndoRedoAction = true;
+    historyIndex++;
+    const action = historyStack[historyIndex];
+
+    switch (action.type) {
+        case 'reveal':
+            if (action.action === 'add') {
+                // Re-add the reveal shape
+                revealArea(action.data.x, action.data.y);
+            }
+            break;
+
+        case 'fog':
+            if (action.action === 'add') {
+                // Re-add the fog shape
+                addFog(action.data.x, action.data.y);
+            }
+            break;
+
+        case 'marker':
+            if (action.action === 'add') {
+                // Re-add the marker
+                const restored = addMarker(action.data.x, action.data.y, action.data.color);
+                restored.name = action.data.name;
+                restored.textElement.text(action.data.name);
+            } else if (action.action === 'remove') {
+                // Remove the marker again
+                const marker = markers.find(m => m.id === action.data.id);
+                if (marker) {
+                    marker.element.remove();
+                    marker.textElement.remove();
+                    markers = markers.filter(m => m.id !== action.data.id);
+                }
+            }
+            break;
+
+        case 'drawing':
+            if (action.action === 'add') {
+                // Re-add the drawing
+                drawingGroup.append("path")
+                    .attr("id", action.data.id)
+                    .attr("d", action.data.pathData)
+                    .attr("fill", "none")
+                    .attr("stroke", markerColors[action.data.color].stroke)
+                    .attr("stroke-width", action.data.strokeWidth)
+                    .attr("stroke-linecap", "round")
+                    .attr("stroke-linejoin", "round")
+                    .attr("class", "drawing-path");
+                drawings.push(action.data);
+            }
+            break;
+    }
+
+    isUndoRedoAction = false;
+    saveToLocalStorage();
+    updateUndoRedoButtons();
+}
+
+function updateUndoRedoButtons() {
+    if (historyIndex < 0) {
+        undoBtn.style.opacity = '0.5';
+        undoBtn.style.cursor = 'not-allowed';
+    } else {
+        undoBtn.style.opacity = '1';
+        undoBtn.style.cursor = 'pointer';
+    }
+
+    if (historyIndex >= historyStack.length - 1) {
+        redoBtn.style.opacity = '0.5';
+        redoBtn.style.cursor = 'not-allowed';
+    } else {
+        redoBtn.style.opacity = '1';
+        redoBtn.style.cursor = 'pointer';
+    }
+}
+
+undoBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    undo();
+});
+
+redoBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    redo();
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z' && !e.shiftKey) {
+            e.preventDefault();
+            undo();
+        } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
+            e.preventDefault();
+            redo();
+        }
+    }
+});
+
+// Initialize undo/redo buttons
+updateUndoRedoButtons();
 
 // Color palette functionality
 const colorButtons = document.querySelectorAll('.color-button');
