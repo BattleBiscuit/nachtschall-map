@@ -903,12 +903,24 @@ function resetMap() {
 
 revealToolBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    setActiveTool('reveal');
+    if (activeTool === 'reveal') {
+        // Toggle brush control visibility
+        const brushControl = document.getElementById('brush-control');
+        brushControl.classList.toggle('visible');
+    } else {
+        setActiveTool('reveal');
+    }
 });
 
 tool2Btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    setActiveTool('tool2');
+    if (activeTool === 'tool2') {
+        // Toggle color palette visibility
+        const colorPalette = document.getElementById('color-palette');
+        colorPalette.classList.toggle('visible');
+    } else {
+        setActiveTool('tool2');
+    }
 });
 
 resetBtn.addEventListener('click', (e) => {
