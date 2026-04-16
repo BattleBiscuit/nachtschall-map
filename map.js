@@ -99,22 +99,14 @@ function createRabenfelsMap() {
     const cx = width / 2;
     const cy = height / 2;
 
-    // Calculate image dimensions to fit screen while maintaining aspect ratio
+    // Calculate image dimensions - fill full width
     const imgAspectRatio = 598 / 337; // width / height of reference image
-    const screenAspectRatio = width / height;
 
-    let imgWidth, imgHeight;
-    if (screenAspectRatio > imgAspectRatio) {
-        // Screen is wider, fit to height
-        imgHeight = height * 0.9;
-        imgWidth = imgHeight * imgAspectRatio;
-    } else {
-        // Screen is taller, fit to width
-        imgWidth = width * 0.9;
-        imgHeight = imgWidth / imgAspectRatio;
-    }
+    // Always fit to full width
+    const imgWidth = width;
+    const imgHeight = imgWidth / imgAspectRatio;
 
-    const imgX = cx - imgWidth / 2;
+    const imgX = 0;
     const imgY = cy - imgHeight / 2;
 
     // Store dimensions for fog overlay
