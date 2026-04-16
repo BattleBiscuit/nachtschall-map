@@ -94,8 +94,8 @@ const revealGroup = mask.append("g")
 
 // Map layers
 const mapGroup = g.append("g").attr("class", "map-layer");
-const fogGroup = g.append("g").attr("class", "fog-layer");
 const markersGroup = g.append("g").attr("class", "markers-layer"); // Layer for player/enemy markers
+const fogGroup = g.append("g").attr("class", "fog-layer");
 
 // Brush size indicator circle
 const brushIndicator = g.append("circle")
