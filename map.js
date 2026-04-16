@@ -396,16 +396,99 @@ function addMarker(x, y, color = null) {
 
     markerCircle.call(drag);
 
-    // Add double-click event to edit marker name
+    // Add double-click event to edit marker name and color
     markerCircle.on("dblclick", function(event) {
         if (activeTool === 'tool2') {
             event.stopPropagation();
-            const newName = prompt("Enter marker name:", markerData.name || "");
-            if (newName !== null) {
+
+            // Create a custom dialog for editing marker
+            const dialogHTML = `
+                <div style="font-family: sans-serif;">
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #aaa; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Name:</label>
+                        <input type="text" id="marker-name-input" value="${markerData.name || ""}"
+                               style="width: 100%; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.2);
+                                      border-radius: 6px; font-size: 14px; background: rgba(0, 0, 0, 0.3);
+                                      color: #fff; outline: none; transition: all 0.2s;"
+                               onfocus="this.style.borderColor='rgba(100, 150, 255, 0.5)'; this.style.background='rgba(0, 0, 0, 0.5)';"
+                               onblur="this.style.borderColor='rgba(255, 255, 255, 0.2)'; this.style.background='rgba(0, 0, 0, 0.3)';">
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #aaa; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Color:</label>
+                        <div id="color-options" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                            ${Object.keys(markerColors).map(colorKey => `
+                                <button class="color-option" data-color="${colorKey}"
+                                        style="width: 40px; height: 40px; border-radius: 50%;
+                                               border: 3px solid ${colorKey === markerData.color ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.2)'};
+                                               background-color: ${markerColors[colorKey].fill};
+                                               cursor: pointer; transition: all 0.2s;
+                                               box-shadow: ${colorKey === markerData.color ? '0 0 12px rgba(255, 255, 255, 0.4)' : '0 2px 4px rgba(0, 0, 0, 0.5)'};"
+                                        onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 4px 8px rgba(0, 0, 0, 0.6)';"
+                                        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='${colorKey === markerData.color ? '0 0 12px rgba(255, 255, 255, 0.4)' : '0 2px 4px rgba(0, 0, 0, 0.5)'}';"
+                                        onclick="document.querySelectorAll('.color-option').forEach(b => { b.style.border='3px solid rgba(255, 255, 255, 0.2)'; b.style.boxShadow='0 2px 4px rgba(0, 0, 0, 0.5)'; }); this.style.border='3px solid rgba(255, 255, 255, 0.9)'; this.style.boxShadow='0 0 12px rgba(255, 255, 255, 0.4)';">
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Create modal overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.85); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);';
+
+            const modal = document.createElement('div');
+            modal.style.cssText = 'background: linear-gradient(145deg, #2a2a2a, #1f1f1f); padding: 25px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05); max-width: 400px; width: 90%; border: 1px solid rgba(255, 255, 255, 0.1);';
+            modal.innerHTML = dialogHTML;
+
+            const buttons = document.createElement('div');
+            buttons.style.cssText = 'display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;';
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = 'Cancel';
+            cancelBtn.style.cssText = 'padding: 10px 18px; border: 1px solid rgba(255, 255, 255, 0.2); background: linear-gradient(145deg, #333, #282828); color: #aaa; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; font-weight: bold;';
+            cancelBtn.onmouseover = () => { cancelBtn.style.background = 'linear-gradient(145deg, #3a3a3a, #2f2f2f)'; cancelBtn.style.color = '#ddd'; };
+            cancelBtn.onmouseout = () => { cancelBtn.style.background = 'linear-gradient(145deg, #333, #282828)'; cancelBtn.style.color = '#aaa'; };
+            cancelBtn.onclick = () => document.body.removeChild(overlay);
+
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Save';
+            saveBtn.style.cssText = 'padding: 10px 18px; border: none; background: linear-gradient(145deg, #3a5a7a, #2a4560); color: white; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.2s; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);';
+            saveBtn.onmouseover = () => { saveBtn.style.background = 'linear-gradient(145deg, #4a6a8a, #3a5570)'; saveBtn.style.boxShadow = '0 3px 8px rgba(0, 0, 0, 0.6)'; };
+            saveBtn.onmouseout = () => { saveBtn.style.background = 'linear-gradient(145deg, #3a5a7a, #2a4560)'; saveBtn.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.5)'; };
+            saveBtn.onclick = () => {
+                const newName = modal.querySelector('#marker-name-input').value;
+                const selectedColor = modal.querySelector('.color-option[style*="border: 3px solid rgb(0, 0, 0)"]')?.dataset.color || markerData.color;
+
                 markerData.name = newName;
                 markerData.textElement.text(newName);
+
+                if (selectedColor !== markerData.color) {
+                    markerData.color = selectedColor;
+                    const colors = markerColors[selectedColor];
+                    markerData.element
+                        .attr("fill", colors.fill)
+                        .attr("stroke", colors.stroke)
+                        .attr("data-color", selectedColor);
+                }
+
                 saveToLocalStorage();
-            }
+                document.body.removeChild(overlay);
+            };
+
+            buttons.appendChild(cancelBtn);
+            buttons.appendChild(saveBtn);
+            modal.appendChild(buttons);
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+
+            // Focus on name input
+            setTimeout(() => modal.querySelector('#marker-name-input').focus(), 100);
+
+            // Allow Enter key to save
+            modal.querySelector('#marker-name-input').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') saveBtn.click();
+            });
         }
     });
 
