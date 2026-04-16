@@ -49,34 +49,54 @@
         }
 
         .tool-button {
-            width: 50px;
-            height: 50px;
-            background-color: rgba(255, 255, 255, 0.9);
-            border: 2px solid #333;
-            border-radius: 8px;
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(145deg, #2a2a2a, #1f1f1f);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            font-size: 20px;
+            transition: all 0.15s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            color: #aaa;
         }
 
         .tool-button:hover {
-            background-color: white;
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            background: linear-gradient(145deg, #333, #252525);
+            border-color: rgba(255, 255, 255, 0.2);
+            color: #ddd;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.08);
         }
 
         .tool-button.active {
-            background-color: #4a9eff;
-            border-color: #2171b5;
-            color: white;
+            background: linear-gradient(145deg, #3a5a7a, #2a4560);
+            border-color: rgba(100, 150, 200, 0.4);
+            color: #fff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+                        0 0 12px rgba(74, 158, 255, 0.3);
         }
 
         .tool-button:active {
-            transform: scale(0.95);
+            transform: translateY(1px);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        /* Icon styles */
+        .tool-button svg {
+            width: 22px;
+            height: 22px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
         /* Color palette styles */
@@ -95,28 +115,35 @@
         }
 
         .color-button {
-            width: 40px;
-            height: 40px;
-            border: 3px solid #333;
+            width: 36px;
+            height: 36px;
+            border: 2px solid rgba(0, 0, 0, 0.6);
             border-radius: 50%;
             cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+            transition: all 0.15s ease;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5),
+                        inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+                        inset 0 2px 4px rgba(255, 255, 255, 0.2);
+            position: relative;
         }
 
         .color-button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            transform: scale(1.08);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6),
+                        inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+                        inset 0 2px 4px rgba(255, 255, 255, 0.25);
         }
 
         .color-button.active {
-            border-width: 4px;
-            border-color: white;
-            box-shadow: 0 0 0 2px #333, 0 4px 12px rgba(0, 0, 0, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.8),
+                        0 0 12px rgba(255, 255, 255, 0.4),
+                        inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+                        inset 0 2px 4px rgba(255, 255, 255, 0.3);
         }
 
         .color-button:active {
-            transform: scale(0.95);
+            transform: scale(0.98);
         }
     </style>
 </head>
@@ -136,15 +163,26 @@
 
     <div id="tool-overlay">
         <button class="tool-button active" id="reveal-tool" title="Reveal Tool (Active)">
-            👁️
+            <svg viewBox="0 0 24 24">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+            </svg>
         </button>
         <button class="tool-button" id="tool-2" title="Markers Tool - Add/Remove tokens">
-            ⭕
-        </button>
-        <button class="tool-button" id="reset-btn" title="Reset Map - Clear all fog and markers" style="background-color: rgba(255, 100, 100, 0.9); margin-top: 20px;">
-            🔄
+            <svg viewBox="0 0 24 24">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                <circle cx="12" cy="10" r="3"></circle>
+            </svg>
         </button>
     </div>
+
+    <button class="tool-button" id="reset-btn" title="Reset Map - Clear all fog and markers" style="position: fixed; bottom: 20px; right: 20px; background: linear-gradient(145deg, #5a2a2a, #4a1f1f); border-color: rgba(255, 100, 100, 0.3); z-index: 1000;">
+        <svg viewBox="0 0 24 24">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <polyline points="1 20 1 14 7 14"></polyline>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+    </button>
 
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://unpkg.com/topojson@3"></script>
