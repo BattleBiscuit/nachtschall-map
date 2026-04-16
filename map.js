@@ -15,6 +15,9 @@ let activeTool = 'reveal';
 let markers = [];
 let markerIdCounter = 0;
 
+// Storage for fog of war reveal shapes
+let revealShapes = [];
+
 // Initialize SVG and dimensions
 const container = d3.select("#map-container");
 const width = window.innerWidth;
@@ -213,6 +216,10 @@ function revealArea(x, y) {
         .attr("opacity", 1);
 
     revealedAreas.push({ x, y, radius: config.revealRadius });
+
+    // Store reveal data for saving
+    revealShapes.push({ x, y, radius: config.revealRadius, pathData, gradientId });
+    saveToLocalStorage();
 }
 
 // Function to add fog back at position with wonky fading effect
@@ -280,6 +287,10 @@ function addFog(x, y) {
     shape.transition()
         .duration(300)
         .attr("opacity", 1);
+
+    // Store fog data for saving
+    revealShapes.push({ x, y, radius: config.revealRadius, pathData, gradientId, isFog: true });
+    saveToLocalStorage();
 }
 
 // Function to add a marker (player/enemy circle)
@@ -324,6 +335,8 @@ function addMarker(x, y) {
         })
         .on("end", function(event) {
             d3.select(this).style("cursor", "grab");
+            // Save state after dragging
+            saveToLocalStorage();
             // Delay clearing isDragging flag to prevent click event
             setTimeout(() => {
                 markerData.isDragging = false;
@@ -331,6 +344,11 @@ function addMarker(x, y) {
         });
 
     markerCircle.call(drag);
+
+    // Save state after adding marker (but only if not loading from storage)
+    if (!markerData.isLoading) {
+        saveToLocalStorage();
+    }
 
     return markerData;
 }
@@ -376,6 +394,11 @@ function removeMarker(x, y) {
         // Remove from markers array
         markers = markers.filter(m => m.id !== marker.id);
     });
+
+    // Save state after removal
+    if (markersToRemove.length > 0) {
+        saveToLocalStorage();
+    }
 }
 
 // Zoom behavior with filter to only pan on Ctrl+drag
@@ -547,6 +570,116 @@ window.addEventListener("resize", () => {
         .attr("filter", "url(#fog-blur)")
         .attr("mask", "url(#fog-mask)");
 });
+
+// Save state to localStorage
+function saveToLocalStorage() {
+    const state = {
+        revealShapes: revealShapes,
+        markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id }))
+    };
+    localStorage.setItem('mapState', JSON.stringify(state));
+}
+
+// Load state from localStorage
+function loadFromLocalStorage() {
+    const savedState = localStorage.getItem('mapState');
+    if (!savedState) return;
+
+    try {
+        const state = JSON.parse(savedState);
+
+        // Restore reveal shapes
+        if (state.revealShapes) {
+            state.revealShapes.forEach(shapeData => {
+                if (shapeData.isFog) {
+                    // Recreate fog shape
+                    const gradient = defs.append("radialGradient")
+                        .attr("id", shapeData.gradientId);
+
+                    gradient.append("stop")
+                        .attr("offset", "0%")
+                        .attr("stop-color", "white")
+                        .attr("stop-opacity", 1);
+
+                    gradient.append("stop")
+                        .attr("offset", "40%")
+                        .attr("stop-color", "white")
+                        .attr("stop-opacity", 0.9);
+
+                    gradient.append("stop")
+                        .attr("offset", "70%")
+                        .attr("stop-color", "white")
+                        .attr("stop-opacity", 0.6);
+
+                    gradient.append("stop")
+                        .attr("offset", "85%")
+                        .attr("stop-color", "white")
+                        .attr("stop-opacity", 0.3);
+
+                    gradient.append("stop")
+                        .attr("offset", "100%")
+                        .attr("stop-color", "white")
+                        .attr("stop-opacity", 0);
+
+                    revealGroup.append("path")
+                        .attr("d", shapeData.pathData)
+                        .attr("fill", `url(#${shapeData.gradientId})`)
+                        .attr("opacity", 1);
+                } else {
+                    // Recreate reveal shape
+                    const gradient = defs.append("radialGradient")
+                        .attr("id", shapeData.gradientId);
+
+                    gradient.append("stop")
+                        .attr("offset", "0%")
+                        .attr("stop-color", "black")
+                        .attr("stop-opacity", 1);
+
+                    gradient.append("stop")
+                        .attr("offset", "40%")
+                        .attr("stop-color", "black")
+                        .attr("stop-opacity", 0.9);
+
+                    gradient.append("stop")
+                        .attr("offset", "70%")
+                        .attr("stop-color", "black")
+                        .attr("stop-opacity", 0.6);
+
+                    gradient.append("stop")
+                        .attr("offset", "85%")
+                        .attr("stop-color", "black")
+                        .attr("stop-opacity", 0.3);
+
+                    gradient.append("stop")
+                        .attr("offset", "100%")
+                        .attr("stop-color", "black")
+                        .attr("stop-opacity", 0);
+
+                    revealGroup.append("path")
+                        .attr("d", shapeData.pathData)
+                        .attr("fill", `url(#${shapeData.gradientId})`)
+                        .attr("opacity", 1);
+                }
+            });
+            revealShapes = state.revealShapes;
+        }
+
+        // Restore markers
+        if (state.markers) {
+            state.markers.forEach(markerData => {
+                const marker = addMarker(markerData.x, markerData.y);
+                marker.isLoading = true; // Mark as loading to prevent saving during restore
+            });
+        }
+    } catch (e) {
+        console.error('Failed to load map state:', e);
+    }
+}
+
+// Load saved state after fog is set up
+setTimeout(() => {
+    loadFromLocalStorage();
+}, 100);
 
 // No initial reveal - map starts completely fogged
 
