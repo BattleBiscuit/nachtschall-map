@@ -686,6 +686,7 @@ setTimeout(() => {
 // Tool button functionality
 const revealToolBtn = document.getElementById('reveal-tool');
 const tool2Btn = document.getElementById('tool-2');
+const resetBtn = document.getElementById('reset-btn');
 
 function setActiveTool(tool) {
     activeTool = tool;
@@ -697,11 +698,29 @@ function setActiveTool(tool) {
     if (tool === 'reveal') {
         revealToolBtn.classList.add('active');
         revealToolBtn.title = 'Reveal Tool (Active)';
-        tool2Btn.title = 'Tool 2';
+        tool2Btn.title = 'Markers Tool - Add/Remove tokens';
     } else if (tool === 'tool2') {
         tool2Btn.classList.add('active');
-        tool2Btn.title = 'Tool 2 (Active)';
+        tool2Btn.title = 'Markers Tool (Active)';
         revealToolBtn.title = 'Reveal Tool';
+    }
+}
+
+function resetMap() {
+    if (confirm('Are you sure you want to reset the map? This will clear all fog reveals and markers.')) {
+        // Clear localStorage
+        localStorage.removeItem('mapState');
+
+        // Clear all reveal/fog shapes
+        revealGroup.selectAll("*").remove();
+        revealShapes = [];
+
+        // Clear all markers
+        markersGroup.selectAll("*").remove();
+        markers = [];
+        markerIdCounter = 0;
+
+        alert('Map reset! All fog and markers cleared.');
     }
 }
 
@@ -713,4 +732,9 @@ revealToolBtn.addEventListener('click', (e) => {
 tool2Btn.addEventListener('click', (e) => {
     e.stopPropagation();
     setActiveTool('tool2');
+});
+
+resetBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    resetMap();
 });
