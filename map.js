@@ -418,7 +418,10 @@ function removeMarker(x, y) {
     }
 }
 
-// Zoom behavior with filter to only pan on Ctrl+drag
+// Track middle mouse button state for panning
+let isMiddleMouseDown = false;
+
+// Zoom behavior - now supports middle mouse button panning
 const zoom = d3.zoom()
     .scaleExtent([config.initialZoom, config.maxZoom])
     .translateExtent([
@@ -426,13 +429,11 @@ const zoom = d3.zoom()
         [width, height]
     ])
     .filter((event) => {
-        // Block wheel zoom if Shift is pressed (for brush size adjustment)
-        if (event.type === 'wheel' && event.shiftKey) return false;
         // Allow wheel zoom normally
         if (event.type === 'wheel') return true;
-        // Allow pan only when Ctrl is pressed
+        // Allow pan with middle mouse button (button 1)
         if (event.type === 'mousedown' || event.type === 'mousemove') {
-            return event.ctrlKey;
+            return event.button === 1 || isMiddleMouseDown;
         }
         return false;
     })
@@ -441,23 +442,6 @@ const zoom = d3.zoom()
     });
 
 svg.call(zoom);
-
-// Handle mouse wheel for brush size when Shift is held
-svg.on("wheel", function(event) {
-    if (event.shiftKey) {
-        event.preventDefault();
-
-        // Adjust reveal radius based on wheel direction
-        const delta = event.deltaY > 0 ? -5 : 5;
-        config.revealRadius = Math.max(
-            config.minRevealRadius,
-            Math.min(config.maxRevealRadius, config.revealRadius + delta)
-        );
-
-        // Update brush indicator size
-        brushIndicator.attr("r", config.revealRadius);
-    }
-}, { passive: false });
 
 // Mouse/touch interaction for revealing
 let isMouseDown = false;
@@ -485,12 +469,17 @@ svg.on("contextmenu", function(event) {
 });
 
 svg.on("mousedown touchstart", function(event) {
-    // Only track mouse down for reveal tool if Ctrl is not pressed
-    if (!event.ctrlKey) {
+    if (event.button === 1) {
+        // Middle mouse button - for panning
+        event.preventDefault();
+        isMiddleMouseDown = true;
+        container.node().classList.add('panning');
+    } else {
+        // Left or right mouse button
         if (event.button === 2) {
             // Right mouse button
             isRightMouseDown = true;
-        } else {
+        } else if (event.button === 0) {
             // Left mouse button
             isMouseDown = true;
         }
@@ -499,6 +488,11 @@ svg.on("mousedown touchstart", function(event) {
 });
 
 svg.on("mouseup touchend", function(event) {
+    if (event.button === 1) {
+        // Middle mouse button released
+        isMiddleMouseDown = false;
+        container.node().classList.remove('panning');
+    }
     isMouseDown = false;
     isRightMouseDown = false;
 });
@@ -507,7 +501,7 @@ svg.on("mousemove touchmove", function(event) {
     const [x, y] = d3.pointer(event, g.node());
 
     // Update brush indicator position and show it when reveal tool is active
-    if (activeTool === 'reveal' && !event.ctrlKey) {
+    if (activeTool === 'reveal' && !isMiddleMouseDown) {
         brushIndicator
             .attr("cx", x)
             .attr("cy", y)
@@ -596,7 +590,8 @@ window.addEventListener("resize", () => {
 function saveToLocalStorage() {
     const state = {
         revealShapes: revealShapes,
-        markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id, color: m.color }))
+        markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id, color: m.color })),
+        brushSize: config.revealRadius
     };
     localStorage.setItem('mapState', JSON.stringify(state));
 }
@@ -608,6 +603,13 @@ function loadFromLocalStorage() {
 
     try {
         const state = JSON.parse(savedState);
+
+        // Restore brush size
+        if (state.brushSize) {
+            config.revealRadius = state.brushSize;
+            brushSlider.value = state.brushSize;
+            updateBrushSize(state.brushSize);
+        }
 
         // Restore reveal shapes
         if (state.revealShapes) {
@@ -716,19 +718,22 @@ function setActiveTool(tool) {
     revealToolBtn.classList.remove('active');
     tool2Btn.classList.remove('active');
 
-    // Show/hide color palette based on active tool
+    // Show/hide color palette and brush control based on active tool
     const colorPalette = document.getElementById('color-palette');
+    const brushControl = document.getElementById('brush-control');
 
     if (tool === 'reveal') {
         revealToolBtn.classList.add('active');
         revealToolBtn.title = 'Reveal Tool (Active)';
         tool2Btn.title = 'Markers Tool - Add/Remove tokens';
         colorPalette.classList.remove('visible');
+        brushControl.classList.add('visible');
     } else if (tool === 'tool2') {
         tool2Btn.classList.add('active');
         tool2Btn.title = 'Markers Tool (Active)';
         revealToolBtn.title = 'Reveal Tool';
         colorPalette.classList.add('visible');
+        brushControl.classList.remove('visible');
     }
 }
 
@@ -778,3 +783,30 @@ colorButtons.forEach(btn => {
         currentMarkerColor = btn.dataset.color;
     });
 });
+
+// Brush size slider functionality
+const brushSlider = document.getElementById('brush-size-slider');
+const brushSizeValue = document.getElementById('brush-size-value');
+const brushPreview = document.getElementById('brush-preview');
+
+function updateBrushSize(value) {
+    const size = parseInt(value);
+    config.revealRadius = size;
+    brushIndicator.attr("r", size);
+    brushSizeValue.textContent = size + 'px';
+
+    // Update preview circle size (scale to fit in 36px container)
+    const previewSize = Math.min(32, (size / 200) * 32);
+    brushPreview.style.setProperty('--preview-size', previewSize + 'px');
+}
+
+brushSlider.addEventListener('input', (e) => {
+    e.stopPropagation();
+    updateBrushSize(e.target.value);
+});
+
+// Initialize preview circle size
+brushPreview.style.setProperty('--preview-size', '10px');
+
+// Initialize brush control visibility (reveal tool is active by default)
+document.getElementById('brush-control').classList.add('visible');
