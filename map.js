@@ -85,6 +85,10 @@ let currentRoomId = null;
 let isOwner = false;
 let suppressLocalEvents = false; // when applying remote events
 let pendingJoin = false;
+// Viewer ping color (defaults to blue)
+let viewerPingColor = 'blue';
+
+// Viewer ping uses the existing `#color-palette` UI (same choices as markers).
 
 // Ensure ping styles exist
 function injectPingStyles() {
@@ -124,10 +128,14 @@ function showPingAt(x, y, meta) {
         const el = document.createElement('div');
         el.className = 'map-ping';
         // optional color/meta could be used later
-        el.style.left = `${x}px`;
-        el.style.top = `${y}px`;
-        // small visual core
-        el.style.background = 'radial-gradient(circle at 50% 40%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.2) 10%, rgba(255,255,255,0.05) 20%, rgba(255,255,255,0) 30%)';
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    // small visual core: use ping color if provided
+    const colorKey = (meta && meta.color) ? meta.color : 'blue';
+    const colors = markerColors[colorKey] || markerColors['blue'];
+    // make a subtle radial core tinted by the marker fill
+    el.style.background = `radial-gradient(circle at 50% 40%, ${colors.fill} 0%, rgba(255,255,255,0.08) 10%, rgba(255,255,255,0.02) 20%, rgba(255,255,255,0) 30%)`;
+    el.style.border = `2px solid ${colors.stroke}`;
         containerEl.appendChild(el);
         // Let animation run for 5s then remove
         setTimeout(() => {
@@ -957,7 +965,7 @@ svg.on("click", function(event) {
             if (socket) {
                 const p = normalizePoint(x, y);
                 const pingId = `ping-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
-                socket.emit('ping', currentRoomId, { id: pingId, nx: p.nx, ny: p.ny, ttl: 5000 });
+                socket.emit('ping', currentRoomId, { id: pingId, nx: p.nx, ny: p.ny, ttl: 5000, color: viewerPingColor });
             }
             return;
         }
@@ -1440,6 +1448,8 @@ colorButtons.forEach(btn => {
         btn.classList.add('active');
         // Update current marker color
         currentMarkerColor = btn.dataset.color;
+        // Also update viewer ping color so viewers use the same palette
+        viewerPingColor = btn.dataset.color;
     });
 });
 
@@ -1633,22 +1643,7 @@ function ensureLobbyControls() {
     uploadCard.appendChild(div);
 
     createBtn.onclick = () => {
-        if (!socket) connectSocket(() => {
-            // after connect
-            socket.emit('createRoom', { snapshot: buildLocalSnapshot() }, (res) => {
-                if (res && res.ok) {
-                    currentRoomId = res.roomId;
-                    isOwner = true;
-                    try { localStorage.setItem('lastLobby', currentRoomId); } catch (e) {}
-                    updateUIForRole();
-                    alert('Created room ' + currentRoomId + '. Others can join with this ID.');
-                    // ensure we broadcast initial map
-                    if (mapImageDataUrl) {
-                        socket.emit('action', currentRoomId, { type: 'setMap', data: { mapFile: mapImageDataUrl, mapAspectRatio } });
-                    }
-                }
-            });
-        });
+        createLobby();
     };
 
     joinBtn.onclick = () => {
@@ -1679,6 +1674,43 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 50);
 });
+
+// Robust createLobby helper: ensures socket is connected, emits createRoom and handles response
+function createLobby() {
+    const doCreate = () => {
+        try {
+            socket.emit('createRoom', { snapshot: buildLocalSnapshot() }, (res) => {
+                if (res && res.ok) {
+                    currentRoomId = res.roomId;
+                    isOwner = true;
+                    try { localStorage.setItem('lastLobby', currentRoomId); } catch (e) {}
+                    updateUIForRole();
+                    alert('Created room ' + currentRoomId + '. Others can join with this ID.');
+                    // ensure we broadcast initial map
+                    if (mapImageDataUrl) {
+                        socket.emit('action', currentRoomId, { type: 'setMap', data: { mapFile: mapImageDataUrl, mapAspectRatio } });
+                    }
+                } else {
+                    alert('Failed to create room: ' + (res && res.error ? res.error : 'Unknown'));
+                }
+            });
+        } catch (e) {
+            console.warn('createLobby failed', e);
+            alert('Unable to create lobby (socket error)');
+        }
+    };
+
+    if (!socket) {
+        connectSocket(() => {
+            doCreate();
+        });
+    } else if (socket && socket.connected) {
+        doCreate();
+    } else {
+        // socket exists but not connected - attempt reconnect then create
+        connectSocket(() => doCreate());
+    }
+}
 
 function connectSocket(cb) {
     if (socket) return cb && cb();
@@ -1781,6 +1813,7 @@ function connectSocket(cb) {
         }
     });
 
+
     socket.on('ownerChanged', (data) => {
         if (socket.id === data.newOwner) {
             isOwner = true;
@@ -1827,7 +1860,7 @@ function updateUIForRole() {
     // Elements to hide for viewers
     const toHide = [
         'reveal-tool', 'tool-2', 'draw-tool', 'load-map-btn',
-        'undo-btn', 'redo-btn', 'reset-btn', 'brush-control', 'color-palette'
+        'undo-btn', 'redo-btn', 'reset-btn', 'brush-control'
     ];
     toHide.forEach(id => {
         const el = document.getElementById(id);
@@ -1843,6 +1876,18 @@ function updateUIForRole() {
     // If viewer, ensure lobby button remains visible
     const lobby = document.getElementById('lobby-btn');
     if (lobby) lobby.style.display = '';
+
+    // Show the shared color palette for viewers so they can pick ping colors
+    const colorPaletteEl = document.getElementById('color-palette');
+    if (colorPaletteEl) {
+        if (currentRoomId && !isOwner && !pendingJoin) {
+            colorPaletteEl.classList.add('visible');
+            colorPaletteEl.style.display = '';
+        } else {
+            // For owners, visibility is controlled by active tool state elsewhere
+            colorPaletteEl.classList.remove('visible');
+        }
+    }
 }
 
 function buildLocalSnapshot() {
