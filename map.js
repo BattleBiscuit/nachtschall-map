@@ -79,6 +79,43 @@ let mapDimensions = {};
 // Map image state
 let mapImageDataUrl = null;
 let mapAspectRatio = 1;
+// Realtime / lobby state
+let socket = null;
+let currentRoomId = null;
+let isOwner = false;
+let suppressLocalEvents = false; // when applying remote events
+let pendingJoin = false;
+
+// Coordinate helpers: normalize coordinates to the map image space (0..1)
+function normalizePoint(x, y) {
+    if (!mapDimensions || !mapDimensions.width || !mapDimensions.height) return { nx: 0, ny: 0 };
+    return {
+        nx: (x - mapDimensions.x) / mapDimensions.width,
+        ny: (y - mapDimensions.y) / mapDimensions.height
+    };
+}
+
+function denormalizePoint(nx, ny) {
+    if (!mapDimensions || !mapDimensions.width || !mapDimensions.height) return { x: 0, y: 0 };
+    return {
+        x: mapDimensions.x + nx * mapDimensions.width,
+        y: mapDimensions.y + ny * mapDimensions.height
+    };
+}
+
+function normalizeRadius(r) {
+    if (!mapDimensions || !mapDimensions.width) return r;
+    return r / mapDimensions.width;
+}
+
+function denormalizeRadius(nr) {
+    if (!mapDimensions || !mapDimensions.width) return nr;
+    return nr * mapDimensions.width;
+}
+
+function canEdit() {
+    return ((!currentRoomId && !pendingJoin) || isOwner);
+}
 
 // Set up map and fog layers from the stored image data URL
 function setupMapLayers() {
@@ -267,33 +304,60 @@ function rebuildMaskCanvas() {
 
 // Function to reveal area at position with wonky fading effect
 function revealArea(x, y) {
+    if (!canEdit() && !suppressLocalEvents) return;
+
+    // Apply locally in absolute map coordinates
     drawRevealOnMask(x, y, config.revealRadius);
     renderFogCanvas();
 
     const shapeId = `shape-${Date.now()}-${Math.random()}`;
-    const revealData = { x, y, radius: config.revealRadius, isFog: false, shapeId };
-    revealShapes.push(revealData);
+    const revealDataLocal = { x, y, radius: config.revealRadius, isFog: false, shapeId };
+    revealShapes.push(revealDataLocal);
 
-    addToHistory({ type: 'reveal', action: 'add', data: revealData });
+    addToHistory({ type: 'reveal', action: 'add', data: revealDataLocal });
     saveToLocalStorage();
+
+    // Emit normalized coordinates to server so other clients can denormalize
+    if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
+        const p = normalizePoint(x, y);
+        const nr = normalizeRadius(config.revealRadius);
+        socket.emit('action', currentRoomId, { type: 'reveal', data: { nx: p.nx, ny: p.ny, nradius: nr, isFog: false, shapeId } });
+    }
 }
 
 // Function to add fog back at position with wonky fading effect
 function addFog(x, y) {
+    if (!canEdit() && !suppressLocalEvents) return;
+
     drawFogOnMask(x, y, config.revealRadius);
     renderFogCanvas();
 
     const shapeId = `shape-${Date.now()}-${Math.random()}`;
-    const fogData = { x, y, radius: config.revealRadius, isFog: true, shapeId };
-    revealShapes.push(fogData);
+    const fogDataLocal = { x, y, radius: config.revealRadius, isFog: true, shapeId };
+    revealShapes.push(fogDataLocal);
 
-    addToHistory({ type: 'fog', action: 'add', data: fogData });
+    addToHistory({ type: 'fog', action: 'add', data: fogDataLocal });
     saveToLocalStorage();
+
+    if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
+        const p = normalizePoint(x, y);
+        const nr = normalizeRadius(config.revealRadius);
+        socket.emit('action', currentRoomId, { type: 'fog', data: { nx: p.nx, ny: p.ny, nradius: nr, isFog: true, shapeId } });
+    }
 }
 
 // Function to add a marker (player/enemy circle)
-function addMarker(x, y, color = null) {
-    const markerId = `marker-${markerIdCounter++}`;
+function addMarker(x, y, color = null, providedId = null) {
+    if (!canEdit() && !suppressLocalEvents) return;
+    let markerId;
+    if (providedId) {
+        markerId = providedId;
+        // try to keep markerIdCounter ahead of any numeric ids to avoid collisions
+        const m = /marker-(\d+)/.exec(providedId);
+        if (m) markerIdCounter = Math.max(markerIdCounter, parseInt(m[1], 10) + 1);
+    } else {
+        markerId = `marker-${markerIdCounter++}`;
+    }
     const markerRadius = Math.min(mapDimensions.width, mapDimensions.height) / 50; // Scale to map size (smaller)
     const markerColor = color || currentMarkerColor;
     const colors = markerColors[markerColor];
@@ -343,8 +407,8 @@ function addMarker(x, y, color = null) {
     // Add drag behavior to marker (only active in marker mode)
     const drag = d3.drag()
         .filter(function(event) {
-            // Only allow drag when in marker mode
-            return activeTool === 'tool2';
+            // Only allow drag when in marker mode and when editing is allowed
+            return activeTool === 'tool2' && canEdit();
         })
         .on("start", function(event) {
             if (activeTool === 'tool2') {
@@ -382,7 +446,7 @@ function addMarker(x, y, color = null) {
 
     // Add double-click event to edit marker name and color
     markerCircle.on("dblclick", function(event) {
-        if (activeTool === 'tool2') {
+        if (activeTool === 'tool2' && canEdit()) {
             event.stopPropagation();
 
             // Create a custom dialog for editing marker
@@ -486,6 +550,10 @@ function addMarker(x, y, color = null) {
         });
 
         saveToLocalStorage();
+        if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
+            const p = normalizePoint(x, y);
+            socket.emit('action', currentRoomId, { type: 'markerAdd', data: { id: markerId, nx: p.nx, ny: p.ny, color: markerColor, name: "" } });
+        }
     }
 
     return markerData;
@@ -509,6 +577,7 @@ function findMarkerAtPosition(x, y) {
 
 // Function to remove marker at position
 function removeMarker(x, y) {
+    if (!canEdit() && !suppressLocalEvents) return;
     const markerRadius = Math.min(mapDimensions.width, mapDimensions.height) / 50;
     const clickRadius = markerRadius * 1.5; // Slightly larger hit area
 
@@ -541,6 +610,10 @@ function removeMarker(x, y) {
 
         // Remove from markers array
         markers = markers.filter(m => m.id !== marker.id);
+        // Emit removal to server if owner
+        if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
+            socket.emit('action', currentRoomId, { type: 'markerRemove', data: { id: marker.id } });
+        }
     });
 
     // Save state after removal
@@ -549,9 +622,38 @@ function removeMarker(x, y) {
     }
 }
 
+function removeMarkerById(id) {
+    if (!id) return;
+    const marker = markers.find(m => m.id === id);
+    if (!marker) return;
+
+    // Add to history before removing
+    addToHistory({
+        type: 'marker',
+        action: 'remove',
+        data: { id: marker.id, x: marker.x, y: marker.y, color: marker.color, name: marker.name || "" }
+    });
+
+    // Animate marker removal
+    marker.element.transition()
+        .duration(200)
+        .attr("r", 0)
+        .style("opacity", 0)
+        .remove();
+
+    // Remove text label
+    marker.textElement.remove();
+
+    // Remove from markers array
+    markers = markers.filter(m => m.id !== marker.id);
+
+    saveToLocalStorage();
+}
+
 // Drawing functions
 function startDrawing(x, y) {
     if (activeTool !== 'draw') return;
+    if (!canEdit() && !suppressLocalEvents) return;
 
     isDrawing = true;
     const drawingId = `drawing-${drawingIdCounter++}`;
@@ -567,6 +669,7 @@ function startDrawing(x, y) {
 
 function continueDrawing(x, y) {
     if (!isDrawing || activeTool !== 'draw' || !currentDrawing) return;
+    if (!canEdit() && !suppressLocalEvents) return;
 
     currentDrawing.points.push([x, y]);
 
@@ -590,6 +693,7 @@ function continueDrawing(x, y) {
 
 function endDrawing() {
     if (!isDrawing || !currentDrawing) return;
+    if (!canEdit() && !suppressLocalEvents) return;
 
     isDrawing = false;
 
@@ -611,6 +715,13 @@ function endDrawing() {
         });
 
         saveToLocalStorage();
+        if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
+            // Send normalized points instead of absolute pathData
+            const latest = drawings[drawings.length - 1];
+            const normPoints = latest.points.map(p => normalizePoint(p[0], p[1]));
+            const normStroke = latest.strokeWidth / (mapDimensions.width || 1);
+            socket.emit('action', currentRoomId, { type: 'drawingAdd', data: { id: latest.id, points: normPoints, color: latest.color, strokeWidthNorm: normStroke } });
+        }
     } else {
         // Remove if too short
         if (currentDrawing.path) {
@@ -704,6 +815,8 @@ svg.on("mousedown touchstart", function(event) {
         container.node().classList.add('panning');
     } else {
         // Left or right mouse button
+        // Block editing interactions for viewers (allow middle mouse panning above)
+        if (!canEdit()) return;
         if (event.button === 2) {
             // Right mouse button
             isRightMouseDown = true;
@@ -760,6 +873,8 @@ svg.on("mousemove touchmove", function(event) {
     if ((isMouseDown || isRightMouseDown) && !event.ctrlKey) {
         isDragging = true;
 
+        if (!canEdit()) return;
+
         if (activeTool === 'reveal') {
             const now = Date.now();
             if (now - lastRevealTime < revealThrottle) return;
@@ -780,6 +895,7 @@ svg.on("mousemove touchmove", function(event) {
 svg.on("click", function(event) {
     // Only act on LEFT click if not dragging and Ctrl is not pressed
     if (!isDragging && !event.ctrlKey) {
+        if (!canEdit()) return;
         const [x, y] = d3.pointer(event, g.node());
 
         if (activeTool === 'reveal') {
@@ -818,6 +934,16 @@ window.addEventListener("resize", () => {
 
 // Save state to localStorage
 function saveToLocalStorage() {
+    // Only persist full map state for owners or when not in a room.
+    if (currentRoomId && !isOwner) {
+        // Viewers should only remember the last lobby they were in.
+        try { localStorage.setItem('lastLobby', currentRoomId); } catch (e) {}
+        // Remove any stored map to avoid conflicting local state
+        localStorage.removeItem('mapState');
+        localStorage.removeItem('mapImage');
+        return;
+    }
+
     const state = {
         revealShapes: revealShapes,
         markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id, color: m.color, name: m.name || "" })),
@@ -861,7 +987,7 @@ function loadFromLocalStorage() {
         // Restore markers
         if (state.markers) {
             state.markers.forEach(markerData => {
-                const marker = addMarker(markerData.x, markerData.y, markerData.color || 'blue');
+                const marker = addMarker(markerData.x, markerData.y, markerData.color || 'blue', markerData.id);
                 marker.isLoading = true; // Mark as loading to prevent saving during restore
                 // Restore marker name
                 if (markerData.name) {
@@ -1025,6 +1151,9 @@ function resetMap() {
         historyIndex = -1;
         updateUndoRedoButtons();
 
+        if (socket && currentRoomId && isOwner) {
+            socket.emit('action', currentRoomId, { type: 'reset' });
+        }
         alert('Map reset! All fog, markers, and drawings cleared.');
     }
 }
@@ -1114,7 +1243,7 @@ function undo() {
                 }
             } else if (action.action === 'remove') {
                 // Re-add the marker
-                const restored = addMarker(action.data.x, action.data.y, action.data.color);
+                const restored = addMarker(action.data.x, action.data.y, action.data.color, action.data.id);
                 restored.name = action.data.name;
                 restored.textElement.text(action.data.name);
             }
@@ -1154,7 +1283,7 @@ function redo() {
         case 'marker':
             if (action.action === 'add') {
                 // Re-add the marker
-                const restored = addMarker(action.data.x, action.data.y, action.data.color);
+                const restored = addMarker(action.data.x, action.data.y, action.data.color, action.data.id);
                 restored.name = action.data.name;
                 restored.textElement.text(action.data.name);
             } else if (action.action === 'remove') {
@@ -1341,6 +1470,8 @@ function showUploadOverlay() {
         };
         img.src = val;
     };
+    // Ensure lobby controls are present whenever overlay is shown
+    ensureLobbyControls();
 }
 
 function hideUploadOverlay() {
@@ -1397,6 +1528,343 @@ document.getElementById('load-map-btn').addEventListener('click', (e) => {
     e.stopPropagation();
     showUploadOverlay();
 });
+
+// Lobby button opens the same overlay (contains lobby controls)
+const lobbyBtn = document.getElementById('lobby-btn');
+if (lobbyBtn) {
+    lobbyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        showUploadOverlay();
+    });
+}
+
+// --- Lobby UI ---
+// Simple lobby controls placed into the upload overlay for convenience
+function ensureLobbyControls() {
+    const uploadCard = document.getElementById('upload-card');
+    if (!uploadCard) return;
+    if (document.getElementById('lobby-controls')) return;
+
+    const div = document.createElement('div');
+    div.id = 'lobby-controls';
+    div.style.cssText = 'margin-top:16px;display:flex;gap:8px;align-items:center;justify-content:center;';
+
+    const createBtn = document.createElement('button');
+    createBtn.textContent = 'Create Lobby';
+    createBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:#3a5a7a;color:#fff;border:none;cursor:pointer;';
+
+    const joinInput = document.createElement('input');
+    joinInput.placeholder = 'Room ID';
+    joinInput.style.cssText = 'padding:8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);color:#ddd;';
+
+    const joinBtn = document.createElement('button');
+    joinBtn.textContent = 'Join';
+    joinBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:#333;color:#ddd;border:1px solid rgba(255,255,255,0.08);cursor:pointer;';
+
+    div.appendChild(createBtn);
+    div.appendChild(joinInput);
+    div.appendChild(joinBtn);
+    uploadCard.appendChild(div);
+
+    createBtn.onclick = () => {
+        if (!socket) connectSocket(() => {
+            // after connect
+            socket.emit('createRoom', { snapshot: buildLocalSnapshot() }, (res) => {
+                if (res && res.ok) {
+                    currentRoomId = res.roomId;
+                    isOwner = true;
+                    try { localStorage.setItem('lastLobby', currentRoomId); } catch (e) {}
+                    updateUIForRole();
+                    alert('Created room ' + currentRoomId + '. Others can join with this ID.');
+                    // ensure we broadcast initial map
+                    if (mapImageDataUrl) {
+                        socket.emit('action', currentRoomId, { type: 'setMap', data: { mapFile: mapImageDataUrl, mapAspectRatio } });
+                    }
+                }
+            });
+        });
+    };
+
+    joinBtn.onclick = () => {
+        const roomId = joinInput.value.trim().toUpperCase();
+        if (!roomId) return alert('Enter Room ID');
+        if (!socket) connectSocket(() => joinRoom(roomId)); else joinRoom(roomId);
+    };
+
+    // move join logic to top-level function `joinRoom`
+}
+
+// Add lobby controls on load so the UI is present even if overlay hidden
+document.addEventListener('DOMContentLoaded', () => {
+    // Small timeout to allow DOM built
+    setTimeout(() => {
+        ensureLobbyControls();
+        updateUIForRole();
+
+        // Auto-join last lobby if present
+        const last = localStorage.getItem('lastLobby');
+        if (last) {
+            pendingJoin = true;
+            updateUIForRole();
+            connectSocket(() => joinRoom(last, (res) => {
+                pendingJoin = false;
+                updateUIForRole();
+            }));
+        }
+    }, 50);
+});
+
+function connectSocket(cb) {
+    if (socket) return cb && cb();
+    try {
+        socket = io();
+    } catch (e) {
+        console.warn('Socket.IO not available');
+        return;
+    }
+    socket.on('connect', () => {
+        console.log('[ws] connected', socket.id);
+        cb && cb();
+    });
+
+    socket.on('action', (action) => {
+        // apply remote action (viewers) while suppressing local emits
+        suppressLocalEvents = true;
+        try {
+            switch (action.type) {
+                case 'setMap':
+                    mapImageDataUrl = action.data.mapFile;
+                    mapAspectRatio = action.data.mapAspectRatio || 1;
+                    setupMapLayers();
+                    break;
+                case 'reveal':
+                    // action.data contains normalized coordinates { nx, ny, nradius }
+                    if (action.data && typeof action.data.nx === 'number') {
+                        const pt = denormalizePoint(action.data.nx, action.data.ny);
+                        const r = denormalizeRadius(action.data.nradius || 0);
+                        const local = { x: pt.x, y: pt.y, radius: r, isFog: false, shapeId: action.data.shapeId };
+                        revealShapes.push(local);
+                        drawRevealOnMask(local.x, local.y, local.radius);
+                        renderFogCanvas();
+                    }
+                    break;
+                case 'fog':
+                    if (action.data && typeof action.data.nx === 'number') {
+                        const pt = denormalizePoint(action.data.nx, action.data.ny);
+                        const r = denormalizeRadius(action.data.nradius || 0);
+                        const local = { x: pt.x, y: pt.y, radius: r, isFog: true, shapeId: action.data.shapeId };
+                        revealShapes.push(local);
+                        drawFogOnMask(local.x, local.y, local.radius);
+                        renderFogCanvas();
+                    }
+                    break;
+                case 'markerAdd':
+                    if (action.data && typeof action.data.nx === 'number') {
+                        const p = denormalizePoint(action.data.nx, action.data.ny);
+                        addMarker(p.x, p.y, action.data.color, action.data.id);
+                    }
+                    break;
+                case 'markerRemove':
+                    if (action.data && action.data.id) removeMarkerById(action.data.id);
+                    break;
+                case 'drawingAdd':
+                    // recreate drawing path from normalized points
+                    if (action.data && Array.isArray(action.data.points)) {
+                        const pts = action.data.points.map(p => denormalizePoint(p.nx, p.ny));
+                        const pathData = generateSmoothPath(pts.map(p => [p.x, p.y]));
+                        drawingGroup.append('path')
+                            .attr('id', action.data.id)
+                            .attr('d', pathData)
+                            .attr('fill', 'none')
+                            .attr('stroke', markerColors[action.data.color].stroke)
+                            .attr('stroke-width', (action.data.strokeWidthNorm || 0) * (mapDimensions.width || 1))
+                            .attr('stroke-linecap', 'round')
+                            .attr('stroke-linejoin', 'round')
+                            .attr('class', 'drawing-path');
+                        drawings.push({ id: action.data.id, points: pts.map(p => [p.x, p.y]), color: action.data.color, strokeWidth: (action.data.strokeWidthNorm || 0) * (mapDimensions.width || 1), pathData });
+                    }
+                    break;
+                case 'reset':
+                    // clear everything
+                    revealShapes = [];
+                    if (maskCanvas) {
+                        const maskCtx = maskCanvas.getContext('2d');
+                        maskCtx.globalCompositeOperation = 'source-over';
+                        maskCtx.fillStyle = 'white';
+                        maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+                        renderFogCanvas();
+                    }
+                    markersGroup.selectAll('*').remove();
+                    markers = [];
+                    drawingGroup.selectAll('*').remove();
+                    drawings = [];
+                    break;
+            }
+        } finally {
+            suppressLocalEvents = false;
+        }
+    });
+
+    socket.on('ownerChanged', (data) => {
+        if (socket.id === data.newOwner) {
+            isOwner = true;
+            alert('You are now the owner of the room.');
+        } else {
+            if (currentRoomId && rooms && rooms[currentRoomId]) {
+                isOwner = false;
+            }
+        }
+        updateUIForRole();
+    });
+}
+
+// Join a room by id (top-level so auto-join can reuse it)
+function joinRoom(roomId, cb) {
+    if (!socket) {
+        connectSocket(() => joinRoom(roomId, cb));
+        return;
+    }
+    socket.emit('joinRoom', roomId, (res) => {
+        if (!res || !res.ok) {
+            if (cb) cb({ ok: false, error: res && res.error });
+            return;
+        }
+        currentRoomId = roomId;
+        isOwner = (res.role === 'owner');
+        // apply snapshot from server (denormalize handled in applyRemoteSnapshot)
+        if (res.snapshot) applyRemoteSnapshot(res.snapshot);
+        hideUploadOverlay();
+        // For viewers, clear stored map state and only remember the lobby id
+        try { localStorage.setItem('lastLobby', roomId); } catch (e) {}
+        if (!isOwner) {
+            localStorage.removeItem('mapState');
+            localStorage.removeItem('mapImage');
+        }
+        updateUIForRole();
+        if (cb) cb({ ok: true, role: res.role });
+        alert('Joined room ' + roomId + ' as ' + (isOwner ? 'owner' : 'viewer'));
+    });
+}
+
+// Update UI depending on whether current client can edit
+function updateUIForRole() {
+    // Elements to hide for viewers
+    const toHide = [
+        'reveal-tool', 'tool-2', 'draw-tool', 'load-map-btn',
+        'undo-btn', 'redo-btn', 'reset-btn', 'brush-control', 'color-palette'
+    ];
+    toHide.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (!canEdit()) {
+            el.style.display = 'none';
+        } else {
+            // restore default display
+            el.style.display = '';
+        }
+    });
+
+    // If viewer, ensure lobby button remains visible
+    const lobby = document.getElementById('lobby-btn');
+    if (lobby) lobby.style.display = '';
+}
+
+function buildLocalSnapshot() {
+    // Normalize all coordinates so snapshots are resolution-independent
+    const normReveal = revealShapes.map(s => {
+        // if already normalized (has nx), pass through
+        if (typeof s.nx === 'number') return s;
+        const p = normalizePoint(s.x, s.y);
+        return { nx: p.nx, ny: p.ny, nradius: normalizeRadius(s.radius), isFog: s.isFog, shapeId: s.shapeId };
+    });
+
+    const normMarkers = markers.map(m => {
+        const p = normalizePoint(m.x, m.y);
+        return { id: m.id, nx: p.nx, ny: p.ny, color: m.color, name: m.name };
+    });
+
+    const normDrawings = drawings.map(d => ({ id: d.id, points: d.points.map(p => normalizePoint(p[0], p[1])), color: d.color, strokeWidthNorm: (d.strokeWidth || 1) / (mapDimensions.width || 1) }));
+
+    return {
+        mapFile: mapImageDataUrl,
+        mapAspectRatio,
+        revealShapes: normReveal,
+        markers: normMarkers,
+        drawings: normDrawings
+    };
+}
+
+function applyRemoteSnapshot(snap) {
+    if (!snap) return;
+    suppressLocalEvents = true;
+    try {
+        if (snap.mapFile) {
+            mapImageDataUrl = snap.mapFile;
+            mapAspectRatio = snap.mapAspectRatio || 1;
+            setupMapLayers();
+        }
+        if (snap.revealShapes) {
+            // snap may contain normalized shapes (nx,ny,nradius) or absolute (x,y,radius)
+            const denorm = snap.revealShapes.map(s => {
+                if (typeof s.nx === 'number') {
+                    const pt = denormalizePoint(s.nx, s.ny);
+                    return { x: pt.x, y: pt.y, radius: denormalizeRadius(s.nradius || 0), isFog: s.isFog, shapeId: s.shapeId };
+                } else {
+                    return { x: s.x, y: s.y, radius: s.radius, isFog: s.isFog, shapeId: s.shapeId };
+                }
+            });
+            revealShapes = denorm;
+            rebuildMaskCanvas();
+        }
+        if (snap.markers) {
+            drawingGroup.selectAll('*');
+            markersGroup.selectAll('*').remove();
+            markers = [];
+            snap.markers.forEach(m => {
+                if (typeof m.nx === 'number') {
+                    const pt = denormalizePoint(m.nx, m.ny);
+                    addMarker(pt.x, pt.y, m.color, m.id);
+                } else if (typeof m.x === 'number') {
+                    addMarker(m.x, m.y, m.color, m.id);
+                }
+            });
+        }
+        if (snap.drawings) {
+            drawingGroup.selectAll('*').remove();
+            drawings = [];
+            snap.drawings.forEach(d => {
+                if (Array.isArray(d.points) && d.points.length && typeof d.points[0].nx === 'number') {
+                    const pts = d.points.map(p => denormalizePoint(p.nx, p.ny));
+                    const pathData = generateSmoothPath(pts.map(p => [p.x, p.y]));
+                    const strokeW = (d.strokeWidthNorm || 0) * (mapDimensions.width || 1);
+                    drawingGroup.append('path')
+                        .attr('id', d.id)
+                        .attr('d', pathData)
+                        .attr('fill', 'none')
+                        .attr('stroke', markerColors[d.color].stroke)
+                        .attr('stroke-width', strokeW)
+                        .attr('stroke-linecap', 'round')
+                        .attr('stroke-linejoin', 'round')
+                        .attr('class', 'drawing-path');
+                    drawings.push({ id: d.id, points: pts.map(p => [p.x, p.y]), color: d.color, strokeWidth: strokeW, pathData });
+                } else if (d.pathData) {
+                    drawingGroup.append('path')
+                        .attr('id', d.id)
+                        .attr('d', d.pathData)
+                        .attr('fill', 'none')
+                        .attr('stroke', markerColors[d.color].stroke)
+                        .attr('stroke-width', d.strokeWidth)
+                        .attr('stroke-linecap', 'round')
+                        .attr('stroke-linejoin', 'round')
+                        .attr('class', 'drawing-path');
+                    drawings.push(d);
+                }
+            });
+        }
+    } finally {
+        suppressLocalEvents = false;
+    }
+}
 
 // Allow dismissing the overlay by clicking the backdrop (only when a map is already loaded)
 document.getElementById('upload-overlay').addEventListener('click', (e) => {
