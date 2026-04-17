@@ -1636,15 +1636,30 @@ if (lobbyBtn) {
 function ensureLobbyControls() {
     const uploadCard = document.getElementById('upload-card');
     if (!uploadCard) return;
-    if (document.getElementById('lobby-controls')) return;
+    if (document.getElementById('lobby-tabs')) return;
 
-    const div = document.createElement('div');
-    div.id = 'lobby-controls';
-    div.style.cssText = 'margin-top:16px;display:flex;gap:8px;align-items:center;justify-content:center;';
+    // Create tabs container
+    const tabs = document.createElement('div');
+    tabs.id = 'lobby-tabs';
+    tabs.style.cssText = 'margin-top:16px; display:flex; flex-direction:column; gap:12px;';
 
-    const createBtn = document.createElement('button');
-    createBtn.textContent = 'Create Lobby';
-    createBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:#3a5a7a;color:#fff;border:none;cursor:pointer;';
+    const tabHeader = document.createElement('div');
+    tabHeader.style.cssText = 'display:flex; gap:8px; justify-content:center;';
+
+    const joinTabBtn = document.createElement('button');
+    joinTabBtn.textContent = 'Join';
+    joinTabBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:#333;color:#ddd;border:1px solid rgba(255,255,255,0.08);cursor:pointer;';
+
+    const createTabBtn = document.createElement('button');
+    createTabBtn.textContent = 'Create';
+    createTabBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:transparent;color:#ddd;border:1px solid rgba(255,255,255,0.06);cursor:pointer;';
+
+    tabHeader.appendChild(joinTabBtn);
+    tabHeader.appendChild(createTabBtn);
+
+    const joinSection = document.createElement('div');
+    joinSection.id = 'join-section';
+    joinSection.style.cssText = 'display:flex;gap:8px;align-items:center;justify-content:center;';
 
     const joinInput = document.createElement('input');
     joinInput.placeholder = 'Room ID';
@@ -1652,24 +1667,65 @@ function ensureLobbyControls() {
 
     const joinBtn = document.createElement('button');
     joinBtn.textContent = 'Join';
-    joinBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:#333;color:#ddd;border:1px solid rgba(255,255,255,0.08);cursor:pointer;';
+    joinBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:#3a3a3a;color:#ddd;border:1px solid rgba(255,255,255,0.08);cursor:pointer;';
 
-    div.appendChild(createBtn);
-    div.appendChild(joinInput);
-    div.appendChild(joinBtn);
-    uploadCard.appendChild(div);
+    joinSection.appendChild(joinInput);
+    joinSection.appendChild(joinBtn);
 
-    createBtn.onclick = () => {
-        createLobby();
-    };
+    const createSection = document.createElement('div');
+    createSection.id = 'create-section';
+    createSection.style.cssText = 'display:none;flex-direction:column;gap:8px;align-items:center;justify-content:center;';
 
+    // Move existing upload-drop-zone into create section so map select/preview live there
+    const dropZone = document.getElementById('upload-drop-zone');
+    if (dropZone) {
+        createSection.appendChild(dropZone);
+    } else {
+        // fallback: create a minimal selector if drop zone missing
+        const fallback = document.createElement('div');
+        fallback.textContent = 'Map chooser unavailable';
+        createSection.appendChild(fallback);
+    }
+
+    // Create Lobby button lives in create section
+    const createBtn = document.createElement('button');
+    createBtn.textContent = 'Create Lobby';
+    createBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:#3a5a7a;color:#fff;border:none;cursor:pointer;';
+    createSection.appendChild(createBtn);
+
+    tabs.appendChild(tabHeader);
+    tabs.appendChild(joinSection);
+    tabs.appendChild(createSection);
+    uploadCard.appendChild(tabs);
+
+    // Tab switching
+    function showJoin() {
+        joinSection.style.display = '';
+        createSection.style.display = 'none';
+        joinTabBtn.style.background = '#3a3a3a';
+        createTabBtn.style.background = 'transparent';
+    }
+
+    function showCreate() {
+        joinSection.style.display = 'none';
+        createSection.style.display = '';
+        joinTabBtn.style.background = 'transparent';
+        createTabBtn.style.background = '#3a3a3a';
+    }
+
+    joinTabBtn.addEventListener('click', (e) => { e.stopPropagation(); showJoin(); });
+    createTabBtn.addEventListener('click', (e) => { e.stopPropagation(); showCreate(); });
+
+    // default to Join tab
+    showJoin();
+
+    // Wire actions
+    createBtn.onclick = () => { createLobby(); };
     joinBtn.onclick = () => {
         const roomId = joinInput.value.trim().toUpperCase();
         if (!roomId) return alert('Enter Room ID');
         if (!socket) connectSocket(() => joinRoom(roomId)); else joinRoom(roomId);
     };
-
-    // move join logic to top-level function `joinRoom`
 }
 
 // Add lobby controls on load so the UI is present even if overlay hidden
