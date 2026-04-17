@@ -261,7 +261,9 @@ function preRenderFogTexture() {
         // Stretch the image to fill the entire fog texture canvas so the
         // visible map area sits deep inside the image. The blur kernel then
         // samples from real pixels on all sides — no fade-to-transparent at edges.
-        ctx.filter = `blur(80px)`;
+        // Use a blur amount relative to the map width so appearance is consistent across devices
+        const blurPx = Math.max(40, Math.round(mapDimensions.width * 0.08));
+        ctx.filter = `blur(${blurPx}px)`;
         ctx.drawImage(img, 0, 0, fW, fH);
         // Rebuild mask from any already-loaded revealShapes (covers resize + restore)
         rebuildMaskCanvas();
@@ -1661,6 +1663,24 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
         ensureLobbyControls();
         updateUIForRole();
+
+        // Create palette toggle button in tool overlay (one-off)
+        const toolOverlay = document.getElementById('tool-overlay');
+        if (toolOverlay && !document.getElementById('palette-toggle-btn')) {
+            const palBtn = document.createElement('button');
+            palBtn.id = 'palette-toggle-btn';
+            palBtn.className = 'tool-button';
+            palBtn.title = 'Toggle Color Palette';
+            palBtn.style.marginTop = '10px';
+            palBtn.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"></circle></svg>`;
+            palBtn.onclick = (e) => {
+                e.stopPropagation();
+                const palette = document.getElementById('color-palette');
+                if (!palette) return;
+                palette.classList.toggle('visible');
+            };
+            toolOverlay.appendChild(palBtn);
+        }
 
         // Auto-join last lobby if present
         const last = localStorage.getItem('lastLobby');
