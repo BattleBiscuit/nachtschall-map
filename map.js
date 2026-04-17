@@ -906,6 +906,39 @@ if (savedMapImage) {
     setTimeout(() => loadFromLocalStorage(), 100);
 }
 
+// If there is no saved map, but the project ships a single map in maps.json,
+// auto-load it for convenience. This works for static setups (no Node required).
+if (!savedMapImage) {
+    // Try relative path first (works with static hosting and subpaths),
+    // then fall back to absolute root.
+    const fetchMapsJson = () => fetch('maps.json').then(r => { if (!r.ok) throw r; return r.json(); })
+        .catch(() => fetch('/maps.json').then(r => { if (!r.ok) throw r; return r.json(); }));
+
+    fetchMapsJson()
+        .then(list => {
+            if (Array.isArray(list) && list.length === 1) {
+                const item = list[0];
+                const img = new Image();
+                img.onload = function() {
+                    mapImageDataUrl = item.file;
+                    mapAspectRatio = img.naturalWidth / img.naturalHeight || 1;
+                    setupMapLayers();
+                    hideUploadOverlay();
+                    // No saved state to restore, but keep consistent behavior
+                    saveToLocalStorage();
+                };
+                img.onerror = function() {
+                    console.warn('Auto-load map failed for', item.file);
+                };
+                // Use the file path as provided in maps.json
+                img.src = item.file;
+            }
+        })
+        .catch((err) => {
+            console.warn('Could not load maps.json for auto-load:', err);
+        });
+}
+
 // Tool button functionality
 const revealToolBtn = document.getElementById('reveal-tool');
 const tool2Btn = document.getElementById('tool-2');
@@ -1244,7 +1277,70 @@ document.getElementById('brush-control').classList.add('visible');
 
 // Upload overlay
 function showUploadOverlay() {
-    document.getElementById('upload-overlay').classList.remove('hidden');
+    const overlay = document.getElementById('upload-overlay');
+    overlay.classList.remove('hidden');
+
+    // Populate map chooser from server-side JSON list
+    const select = document.getElementById('map-select');
+    const preview = document.getElementById('map-preview');
+    const loadBtn = document.getElementById('map-load-button');
+
+    // Clear previous options (keep the placeholder)
+    select.querySelectorAll('option:not([value=""])').forEach(o => o.remove());
+
+    fetch('/maps.json')
+        .then(r => r.json())
+        .then(list => {
+            list.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item.file;
+                opt.textContent = item.name || item.file;
+                if (item.preview) opt.dataset.preview = item.preview;
+                select.appendChild(opt);
+            });
+            // If there's only one map available, auto-select it for convenience
+            if (list.length === 1) {
+                select.value = list[0].file;
+                // Trigger onchange to show preview
+                select.onchange();
+            }
+        })
+        .catch(() => {
+            // If maps.json not available, silently fail — chooser stays empty
+        });
+
+    select.onchange = () => {
+        const val = select.value;
+        if (!val) {
+            preview.style.display = 'none';
+            preview.src = '';
+            return;
+        }
+        // Show preview if available
+        const opt = select.selectedOptions[0];
+        const previewSrc = opt.dataset.preview || val;
+        preview.src = previewSrc;
+        preview.style.display = 'block';
+    };
+
+    loadBtn.onclick = (e) => {
+        e.stopPropagation();
+        const val = select.value;
+        if (!val) return;
+        // Load map by setting mapImageDataUrl to the selected file path
+        const img = new Image();
+        img.onload = function() {
+            mapImageDataUrl = val;
+            mapAspectRatio = img.naturalWidth / img.naturalHeight;
+            setupMapLayers();
+            hideUploadOverlay();
+            saveToLocalStorage();
+        };
+        img.onerror = function() {
+            alert('Failed to load selected map.');
+        };
+        img.src = val;
+    };
 }
 
 function hideUploadOverlay() {
@@ -1269,16 +1365,17 @@ function handleImageFile(file) {
     reader.readAsDataURL(file);
 }
 
+
 const mapFileInput = document.getElementById('map-file-input');
 const uploadDropZone = document.getElementById('upload-drop-zone');
 
-uploadDropZone.addEventListener('click', () => mapFileInput.click());
-
+// File input (Upload) handling — label triggers file dialog
 mapFileInput.addEventListener('change', (e) => {
     handleImageFile(e.target.files[0]);
     mapFileInput.value = '';
 });
 
+// Drag & drop support for raw upload area
 uploadDropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
     uploadDropZone.classList.add('dragover');
@@ -1291,7 +1388,9 @@ uploadDropZone.addEventListener('dragleave', () => {
 uploadDropZone.addEventListener('drop', (e) => {
     e.preventDefault();
     uploadDropZone.classList.remove('dragover');
-    handleImageFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        handleImageFile(e.dataTransfer.files[0]);
+    }
 });
 
 document.getElementById('load-map-btn').addEventListener('click', (e) => {

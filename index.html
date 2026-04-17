@@ -450,16 +450,19 @@
     <div id="upload-overlay">
         <div id="upload-card">
             <h2>Load Map Image</h2>
-            <p id="upload-subtitle">Add a map image to get started</p>
+            <p id="upload-subtitle">Choose a map from the server or upload your own</p>
             <div id="upload-drop-zone">
-                <svg viewBox="0 0 24 24" width="48" height="48">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                    <polyline points="17 8 12 3 7 8"></polyline>
-                    <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                <p>Drop image here</p>
-                <p id="upload-browse-hint">or click to browse</p>
-                <input type="file" id="map-file-input" accept="image/*">
+                <div style="display:flex;gap:12px;align-items:center;justify-content:center;flex-direction:column;">
+                    <select id="map-select" style="min-width:260px;padding:8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);color:#ddd;font-size:14px;">
+                        <option value="">-- Select a map --</option>
+                    </select>
+                    <img id="map-preview" src="" alt="preview" style="max-width:360px;max-height:160px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);display:none;object-fit:cover;">
+                    <div style="display:flex;gap:8px;">
+                        <button id="map-load-button" style="padding:8px 14px;border-radius:6px;border:none;background:linear-gradient(145deg,#3a5a7a,#2a4560);color:#fff;cursor:pointer;">Load</button>
+                        <label for="map-file-input" style="padding:8px 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:linear-gradient(145deg,#333,#282828);color:#aaa;cursor:pointer;">Upload</label>
+                    </div>
+                </div>
+                <input type="file" id="map-file-input" accept="image/*" style="display:none;">
             </div>
         </div>
     </div>
