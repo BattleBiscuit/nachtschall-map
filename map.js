@@ -1482,6 +1482,9 @@ brushPreview.style.setProperty('--preview-size', '10px');
 // Initialize brush control visibility (reveal tool is active by default)
 document.getElementById('brush-control').classList.add('visible');
 
+// Palette forced-open flag so user toggles persist until explicitly changed
+let paletteForcedOpen = false;
+
 // Upload overlay
 function showUploadOverlay() {
     const overlay = document.getElementById('upload-overlay');
@@ -1505,16 +1508,21 @@ function showUploadOverlay() {
                 if (item.preview) opt.dataset.preview = item.preview;
                 select.appendChild(opt);
             });
-            // If there's only one map available, auto-select it for convenience
+            // If there's only one map available, pre-select it but do NOT auto-load to avoid spoilers
             if (list.length === 1) {
                 select.value = list[0].file;
-                // Trigger onchange to show preview
-                select.onchange();
+                // preview remains hidden until user checks 'Show preview' or clicks Load
             }
         })
         .catch(() => {
             // If maps.json not available, silently fail — chooser stays empty
         });
+
+    // By default do not show the preview image to avoid spoilers. Add a checkbox to allow revealing it.
+    const previewToggle = document.createElement('div');
+    previewToggle.style.cssText = 'margin-top:8px;color:#ccc;font-size:13px;display:flex;align-items:center;gap:8px;justify-content:center;';
+    previewToggle.innerHTML = `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type=checkbox id="show-preview-checkbox"> Show preview</label>`;
+    preview.parentNode.insertBefore(previewToggle, preview);
 
     select.onchange = () => {
         const val = select.value;
@@ -1523,11 +1531,16 @@ function showUploadOverlay() {
             preview.src = '';
             return;
         }
-        // Show preview if available
         const opt = select.selectedOptions[0];
         const previewSrc = opt.dataset.preview || val;
-        preview.src = previewSrc;
-        preview.style.display = 'block';
+        const checked = document.getElementById('show-preview-checkbox') && document.getElementById('show-preview-checkbox').checked;
+        if (checked) {
+            preview.src = previewSrc;
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+            preview.src = '';
+        }
     };
 
     loadBtn.onclick = (e) => {
@@ -1677,7 +1690,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 const palette = document.getElementById('color-palette');
                 if (!palette) return;
+                // toggle and set forced-open flag so updateUIForRole doesn't immediately hide it
+                const willOpen = !palette.classList.contains('visible');
                 palette.classList.toggle('visible');
+                paletteForcedOpen = willOpen;
             };
             toolOverlay.appendChild(palBtn);
         }
@@ -1877,9 +1893,9 @@ function joinRoom(roomId, cb) {
 
 // Update UI depending on whether current client can edit
 function updateUIForRole() {
-    // Elements to hide for viewers
+    // Elements to hide for viewers (keep map load button visible so chooser is always accessible)
     const toHide = [
-        'reveal-tool', 'tool-2', 'draw-tool', 'load-map-btn',
+        'reveal-tool', 'tool-2', 'draw-tool',
         'undo-btn', 'redo-btn', 'reset-btn', 'brush-control'
     ];
     toHide.forEach(id => {
@@ -1900,7 +1916,10 @@ function updateUIForRole() {
     // Show the shared color palette for viewers so they can pick ping colors
     const colorPaletteEl = document.getElementById('color-palette');
     if (colorPaletteEl) {
-        if (currentRoomId && !isOwner && !pendingJoin) {
+        if (paletteForcedOpen) {
+            colorPaletteEl.classList.add('visible');
+            colorPaletteEl.style.display = '';
+        } else if (currentRoomId && !isOwner && !pendingJoin) {
             colorPaletteEl.classList.add('visible');
             colorPaletteEl.style.display = '';
         } else {
