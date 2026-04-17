@@ -1095,17 +1095,19 @@ function loadFromLocalStorage() {
     }
 }
 
-// Initialize: load saved map image or show upload overlay
+// Initialize: keep users in the lobby/upload overlay on page load instead of auto-loading a map
 const savedMapImage = localStorage.getItem('mapImage');
 if (savedMapImage) {
+    // Preserve the saved image in memory (so the lobby can load it if owner chooses),
+    // but do not automatically render it — stay in the lobby/menu to avoid surprising the user.
     mapImageDataUrl = savedMapImage;
     const savedStateStr = localStorage.getItem('mapState');
     if (savedStateStr) {
         try { mapAspectRatio = JSON.parse(savedStateStr).mapAspectRatio || 1; } catch(e) {}
     }
-    setupMapLayers();
-    hideUploadOverlay();
-    setTimeout(() => loadFromLocalStorage(), 100);
+    // Show the upload/lobby overlay so user stays in menu on first access
+    showUploadOverlay();
+    // Defer loading any saved state until user explicitly loads the map via the UI
 }
 
 // If there is no saved map, but the project ships a single map in maps.json,
@@ -1698,16 +1700,7 @@ document.addEventListener('DOMContentLoaded', () => {
             toolOverlay.appendChild(palBtn);
         }
 
-        // Auto-join last lobby if present
-        const last = localStorage.getItem('lastLobby');
-        if (last) {
-            pendingJoin = true;
-            updateUIForRole();
-            connectSocket(() => joinRoom(last, (res) => {
-                pendingJoin = false;
-                updateUIForRole();
-            }));
-        }
+        // Do not auto-join last lobby on page load. Keep user in lobby/menu until they choose to join.
     }, 50);
 });
 
