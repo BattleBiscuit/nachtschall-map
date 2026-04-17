@@ -56,54 +56,6 @@ const svg = container.append("svg")
 // Create main group for pan/zoom
 const g = svg.append("g");
 
-// Store revealed circles
-const revealedAreas = [];
-
-// Create defs for mask and filters
-const defs = svg.append("defs");
-
-// Create extreme blur + displacement filter for fog of war
-const blurFilter = defs.append("filter")
-    .attr("id", "fog-blur");
-
-// Create turbulence for displacement
-blurFilter.append("feTurbulence")
-    .attr("type", "turbulence")
-    .attr("baseFrequency", "0.015")
-    .attr("numOctaves", "4")
-    .attr("result", "turbulence");
-
-// Displace the image heavily
-blurFilter.append("feDisplacementMap")
-    .attr("in", "SourceGraphic")
-    .attr("in2", "turbulence")
-    .attr("scale", "80")
-    .attr("xChannelSelector", "R")
-    .attr("yChannelSelector", "G")
-    .attr("result", "displaced");
-
-// Apply extreme blur to the displaced image
-blurFilter.append("feGaussianBlur")
-    .attr("in", "displaced")
-    .attr("stdDeviation", "60")
-    .attr("result", "blurred");
-
-// Create mask for fog of war
-const mask = defs.append("mask")
-    .attr("id", "fog-mask");
-
-// White background for mask (visible areas will be black circles that block)
-mask.append("rect")
-    .attr("x", -10000)
-    .attr("y", -10000)
-    .attr("width", 20000)
-    .attr("height", 20000)
-    .attr("fill", "white");
-
-// Group for revealed areas in mask (will be black to hide fog)
-const revealGroup = mask.append("g")
-    .attr("class", "reveal-group");
-
 // Map layers
 const mapGroup = g.append("g").attr("class", "map-layer");
 const markersGroup = g.append("g").attr("class", "markers-layer"); // Layer for player/enemy markers
@@ -150,182 +102,192 @@ function setupMapLayers() {
         .attr("height", imgHeight)
         .attr("preserveAspectRatio", "xMidYMid meet");
 
-    const fogPadding = 0.2;
-    fogGroup.selectAll("*").remove();
-    fogGroup.append("image")
-        .attr("href", mapImageDataUrl)
-        .attr("x", imgX - imgWidth * fogPadding)
-        .attr("y", imgY - imgHeight * fogPadding)
-        .attr("width", imgWidth * (1 + fogPadding * 2))
-        .attr("height", imgHeight * (1 + fogPadding * 2))
-        .attr("preserveAspectRatio", "none")
-        .attr("class", "fog-overlay")
-        .attr("filter", "url(#fog-blur)")
-        .attr("mask", "url(#fog-mask)");
+    setupFogSystem();
 }
 
 
+// ── Fog canvas system ────────────────────────────────────────────────────────
+// Replaces the heavy SVG filter chain (feTurbulence + feDisplacementMap +
+// feGaussianBlur) and the growing list of SVG mask paths.
+// Instead we keep two offscreen canvases:
+//   fogTextureCanvas – the map image pre-blurred once with ctx.filter
+//   maskCanvas       – grayscale mask in map-space (white=fogged, alpha-out=revealed)
+// and one visible canvas (fogCanvas) that composites them each frame.
+
+let fogCanvas = null;        // visible, fixed, full-viewport
+let maskCanvas = null;       // offscreen, map-space coordinates
+let fogTextureCanvas = null; // offscreen, pre-blurred fog texture
+let fogTextureDims = null;   // { x, y, w, h } in map-space
+let currentZoomTransform = d3.zoomIdentity;
+
+function setupFogSystem() {
+    // (Re-)create the visible fog canvas
+    const existing = document.getElementById('fog-canvas');
+    if (existing) existing.remove();
+    fogCanvas = document.createElement('canvas');
+    fogCanvas.id = 'fog-canvas';
+    fogCanvas.width = window.innerWidth;
+    fogCanvas.height = window.innerHeight;
+    fogCanvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:10;';
+    document.getElementById('map-container').appendChild(fogCanvas);
+
+    // Pre-render the blurred fog texture (also creates maskCanvas at the same size)
+    preRenderFogTexture();
+}
+
+function preRenderFogTexture() {
+    const fogPadding = 0.3;
+    const fW = Math.ceil(mapDimensions.width  * (1 + fogPadding * 2));
+    const fH = Math.ceil(mapDimensions.height * (1 + fogPadding * 2));
+
+    fogTextureCanvas = document.createElement('canvas');
+    fogTextureCanvas.width  = fW;
+    fogTextureCanvas.height = fH;
+    fogTextureDims = {
+        x: mapDimensions.x - mapDimensions.width  * fogPadding,
+        y: mapDimensions.y - mapDimensions.height * fogPadding,
+        w: fW,
+        h: fH
+    };
+
+    // Mask is the same size as the fog texture so the blur fades naturally at the edges
+    maskCanvas = document.createElement('canvas');
+    maskCanvas.width  = fW;
+    maskCanvas.height = fH;
+
+    const img = new Image();
+    img.onload = function () {
+        const ctx = fogTextureCanvas.getContext('2d');
+        // Stretch the image to fill the entire fog texture canvas so the
+        // visible map area sits deep inside the image. The blur kernel then
+        // samples from real pixels on all sides — no fade-to-transparent at edges.
+        ctx.filter = `blur(80px)`;
+        ctx.drawImage(img, 0, 0, fW, fH);
+        // Rebuild mask from any already-loaded revealShapes (covers resize + restore)
+        rebuildMaskCanvas();
+    };
+    img.src = mapImageDataUrl;
+}
+
+function renderFogCanvas() {
+    if (!fogCanvas || !fogTextureCanvas || !maskCanvas) return;
+    const ctx = fogCanvas.getContext('2d');
+    const t   = currentZoomTransform;
+
+    ctx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.scale(t.k, t.k);
+
+    // Draw pre-blurred fog texture
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.drawImage(fogTextureCanvas, fogTextureDims.x, fogTextureDims.y, fogTextureDims.w, fogTextureDims.h);
+
+    // Keep fog only where maskCanvas is opaque — drawn at fog texture coords so blur fades at edges
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.drawImage(maskCanvas, fogTextureDims.x, fogTextureDims.y, fogTextureDims.w, fogTextureDims.h);
+
+    ctx.restore();
+}
+
+// Paint a soft irregular reveal hole into the mask (destination-out removes opacity)
+function drawRevealOnMask(x, y, radius) {
+    const maskCtx = maskCanvas.getContext('2d');
+    // fogTextureDims.x/y is mapDimensions.x/y minus the padding offset,
+    // so this maps SVG map-space coords into fog-texture canvas coords
+    const mx = x - fogTextureDims.x;
+    const my = y - fogTextureDims.y;
+    const numBlobs = 4 + Math.floor(Math.random() * 4);
+
+    maskCtx.globalCompositeOperation = 'destination-out';
+    for (let i = 0; i < numBlobs; i++) {
+        const angle = (i / numBlobs) * Math.PI * 2 + Math.random();
+        const dist  = radius * 0.15 * Math.random();
+        const bx    = mx + Math.cos(angle) * dist;
+        const by    = my + Math.sin(angle) * dist;
+        const br    = radius * (0.75 + Math.random() * 0.3);
+        const g     = maskCtx.createRadialGradient(bx, by, 0, bx, by, br);
+        g.addColorStop(0,    'rgba(0,0,0,1)');
+        g.addColorStop(0.4,  'rgba(0,0,0,0.9)');
+        g.addColorStop(0.7,  'rgba(0,0,0,0.6)');
+        g.addColorStop(0.85, 'rgba(0,0,0,0.3)');
+        g.addColorStop(1,    'rgba(0,0,0,0)');
+        maskCtx.fillStyle = g;
+        maskCtx.beginPath();
+        maskCtx.arc(bx, by, br, 0, Math.PI * 2);
+        maskCtx.fill();
+    }
+    maskCtx.globalCompositeOperation = 'source-over';
+}
+
+// Paint soft irregular fog back into the mask (source-over adds white opacity)
+function drawFogOnMask(x, y, radius) {
+    const maskCtx = maskCanvas.getContext('2d');
+    const mx = x - fogTextureDims.x;
+    const my = y - fogTextureDims.y;
+    const numBlobs = 4 + Math.floor(Math.random() * 4);
+
+    maskCtx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < numBlobs; i++) {
+        const angle = (i / numBlobs) * Math.PI * 2 + Math.random();
+        const dist  = radius * 0.15 * Math.random();
+        const bx    = mx + Math.cos(angle) * dist;
+        const by    = my + Math.sin(angle) * dist;
+        const br    = radius * (0.75 + Math.random() * 0.3);
+        const g     = maskCtx.createRadialGradient(bx, by, 0, bx, by, br);
+        g.addColorStop(0,    'rgba(255,255,255,1)');
+        g.addColorStop(0.4,  'rgba(255,255,255,0.9)');
+        g.addColorStop(0.7,  'rgba(255,255,255,0.6)');
+        g.addColorStop(0.85, 'rgba(255,255,255,0.3)');
+        g.addColorStop(1,    'rgba(255,255,255,0)');
+        maskCtx.fillStyle = g;
+        maskCtx.beginPath();
+        maskCtx.arc(bx, by, br, 0, Math.PI * 2);
+        maskCtx.fill();
+    }
+}
+
+// Rebuild the mask from scratch using the revealShapes array (used for undo/redo and resize)
+function rebuildMaskCanvas() {
+    if (!maskCanvas) return;
+    const maskCtx = maskCanvas.getContext('2d');
+    maskCtx.globalCompositeOperation = 'source-over';
+    maskCtx.fillStyle = 'white';
+    maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+    revealShapes.forEach(shape => {
+        if (shape.isFog) {
+            drawFogOnMask(shape.x, shape.y, shape.radius);
+        } else {
+            drawRevealOnMask(shape.x, shape.y, shape.radius);
+        }
+    });
+    renderFogCanvas();
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // Function to reveal area at position with wonky fading effect
 function revealArea(x, y) {
-    // Create radial gradient for fading effect
-    const gradientId = `reveal-gradient-${Date.now()}-${Math.random()}`;
-    const gradient = defs.append("radialGradient")
-        .attr("id", gradientId);
+    drawRevealOnMask(x, y, config.revealRadius);
+    renderFogCanvas();
 
-    // Create multiple stops for a softer, irregular fade
-    gradient.append("stop")
-        .attr("offset", "0%")
-        .attr("stop-color", "black")
-        .attr("stop-opacity", 1);
-
-    gradient.append("stop")
-        .attr("offset", "40%")
-        .attr("stop-color", "black")
-        .attr("stop-opacity", 0.9);
-
-    gradient.append("stop")
-        .attr("offset", "70%")
-        .attr("stop-color", "black")
-        .attr("stop-opacity", 0.6);
-
-    gradient.append("stop")
-        .attr("offset", "85%")
-        .attr("stop-color", "black")
-        .attr("stop-opacity", 0.3);
-
-    gradient.append("stop")
-        .attr("offset", "100%")
-        .attr("stop-color", "black")
-        .attr("stop-opacity", 0);
-
-    // Create wonky shape instead of perfect circle
-    const numPoints = 12 + Math.floor(Math.random() * 8); // 12-20 points
-    const baseRadius = config.revealRadius;
-
-    let pathData = "";
-    for (let i = 0; i <= numPoints; i++) {
-        const angle = (i / numPoints) * Math.PI * 2;
-        // Add randomness to radius for wonky effect
-        const radiusVariation = 0.7 + Math.random() * 0.6; // 70% to 130% of base
-        const r = baseRadius * radiusVariation;
-        const px = x + Math.cos(angle) * r;
-        const py = y + Math.sin(angle) * r;
-
-        if (i === 0) {
-            pathData = `M ${px},${py}`;
-        } else {
-            // Use quadratic curves for smoother, organic edges
-            const prevAngle = ((i - 1) / numPoints) * Math.PI * 2;
-            const prevR = baseRadius * (0.7 + Math.random() * 0.6);
-            const cpx = x + Math.cos((angle + prevAngle) / 2) * ((r + prevR) / 2);
-            const cpy = y + Math.sin((angle + prevAngle) / 2) * ((r + prevR) / 2);
-            pathData += ` Q ${cpx},${cpy} ${px},${py}`;
-        }
-    }
-    pathData += " Z";
-
-    const shape = revealGroup.append("path")
-        .attr("d", pathData)
-        .attr("fill", `url(#${gradientId})`)
-        .attr("opacity", 0);
-
-    shape.transition()
-        .duration(300)
-        .attr("opacity", 1);
-
-    revealedAreas.push({ x, y, radius: config.revealRadius });
-
-    // Store reveal data for saving
-    const revealData = { x, y, radius: config.revealRadius, pathData, gradientId };
+    const shapeId = `shape-${Date.now()}-${Math.random()}`;
+    const revealData = { x, y, radius: config.revealRadius, isFog: false, shapeId };
     revealShapes.push(revealData);
 
-    // Add to history
-    addToHistory({
-        type: 'reveal',
-        action: 'add',
-        data: revealData
-    });
-
+    addToHistory({ type: 'reveal', action: 'add', data: revealData });
     saveToLocalStorage();
 }
 
 // Function to add fog back at position with wonky fading effect
 function addFog(x, y) {
-    // Create radial gradient for fading effect (reverse of reveal)
-    const gradientId = `fog-gradient-${Date.now()}-${Math.random()}`;
-    const gradient = defs.append("radialGradient")
-        .attr("id", gradientId);
+    drawFogOnMask(x, y, config.revealRadius);
+    renderFogCanvas();
 
-    // Create gradient that goes from transparent to white (opposite of reveal)
-    gradient.append("stop")
-        .attr("offset", "0%")
-        .attr("stop-color", "white")
-        .attr("stop-opacity", 1);
-
-    gradient.append("stop")
-        .attr("offset", "40%")
-        .attr("stop-color", "white")
-        .attr("stop-opacity", 0.9);
-
-    gradient.append("stop")
-        .attr("offset", "70%")
-        .attr("stop-color", "white")
-        .attr("stop-opacity", 0.6);
-
-    gradient.append("stop")
-        .attr("offset", "85%")
-        .attr("stop-color", "white")
-        .attr("stop-opacity", 0.3);
-
-    gradient.append("stop")
-        .attr("offset", "100%")
-        .attr("stop-color", "white")
-        .attr("stop-opacity", 0);
-
-    // Create wonky shape
-    const numPoints = 12 + Math.floor(Math.random() * 8);
-    const baseRadius = config.revealRadius;
-
-    let pathData = "";
-    for (let i = 0; i <= numPoints; i++) {
-        const angle = (i / numPoints) * Math.PI * 2;
-        const radiusVariation = 0.7 + Math.random() * 0.6;
-        const r = baseRadius * radiusVariation;
-        const px = x + Math.cos(angle) * r;
-        const py = y + Math.sin(angle) * r;
-
-        if (i === 0) {
-            pathData = `M ${px},${py}`;
-        } else {
-            const prevAngle = ((i - 1) / numPoints) * Math.PI * 2;
-            const prevR = baseRadius * (0.7 + Math.random() * 0.6);
-            const cpx = x + Math.cos((angle + prevAngle) / 2) * ((r + prevR) / 2);
-            const cpy = y + Math.sin((angle + prevAngle) / 2) * ((r + prevR) / 2);
-            pathData += ` Q ${cpx},${cpy} ${px},${py}`;
-        }
-    }
-    pathData += " Z";
-
-    const shape = revealGroup.append("path")
-        .attr("d", pathData)
-        .attr("fill", `url(#${gradientId})`)
-        .attr("opacity", 0);
-
-    shape.transition()
-        .duration(300)
-        .attr("opacity", 1);
-
-    // Store fog data for saving
-    const fogData = { x, y, radius: config.revealRadius, pathData, gradientId, isFog: true };
+    const shapeId = `shape-${Date.now()}-${Math.random()}`;
+    const fogData = { x, y, radius: config.revealRadius, isFog: true, shapeId };
     revealShapes.push(fogData);
 
-    // Add to history
-    addToHistory({
-        type: 'fog',
-        action: 'add',
-        data: fogData
-    });
-
+    addToHistory({ type: 'fog', action: 'add', data: fogData });
     saveToLocalStorage();
 }
 
@@ -703,6 +665,8 @@ const zoom = d3.zoom()
     })
     .on("zoom", (event) => {
         g.attr("transform", event.transform);
+        currentZoomTransform = event.transform;
+        renderFogCanvas();
     });
 
 svg.call(zoom);
@@ -845,7 +809,11 @@ svg.on("mouseleave", function() {
 window.addEventListener("resize", () => {
     svg.attr("width", window.innerWidth)
         .attr("height", window.innerHeight);
-    setupMapLayers();
+    if (fogCanvas) {
+        fogCanvas.width  = window.innerWidth;
+        fogCanvas.height = window.innerHeight;
+    }
+    setupMapLayers(); // recreates fog system + rebuilds mask via preRenderFogTexture
 });
 
 // Save state to localStorage
@@ -878,80 +846,16 @@ function loadFromLocalStorage() {
             updateBrushSize(state.brushSize);
         }
 
-        // Restore reveal shapes
+        // Restore reveal shapes — migrate old format (gradientId/pathData) to new {x,y,radius,isFog,shapeId}
         if (state.revealShapes) {
-            state.revealShapes.forEach(shapeData => {
-                if (shapeData.isFog) {
-                    // Recreate fog shape
-                    const gradient = defs.append("radialGradient")
-                        .attr("id", shapeData.gradientId);
-
-                    gradient.append("stop")
-                        .attr("offset", "0%")
-                        .attr("stop-color", "white")
-                        .attr("stop-opacity", 1);
-
-                    gradient.append("stop")
-                        .attr("offset", "40%")
-                        .attr("stop-color", "white")
-                        .attr("stop-opacity", 0.9);
-
-                    gradient.append("stop")
-                        .attr("offset", "70%")
-                        .attr("stop-color", "white")
-                        .attr("stop-opacity", 0.6);
-
-                    gradient.append("stop")
-                        .attr("offset", "85%")
-                        .attr("stop-color", "white")
-                        .attr("stop-opacity", 0.3);
-
-                    gradient.append("stop")
-                        .attr("offset", "100%")
-                        .attr("stop-color", "white")
-                        .attr("stop-opacity", 0);
-
-                    revealGroup.append("path")
-                        .attr("d", shapeData.pathData)
-                        .attr("fill", `url(#${shapeData.gradientId})`)
-                        .attr("opacity", 1);
-                } else {
-                    // Recreate reveal shape
-                    const gradient = defs.append("radialGradient")
-                        .attr("id", shapeData.gradientId);
-
-                    gradient.append("stop")
-                        .attr("offset", "0%")
-                        .attr("stop-color", "black")
-                        .attr("stop-opacity", 1);
-
-                    gradient.append("stop")
-                        .attr("offset", "40%")
-                        .attr("stop-color", "black")
-                        .attr("stop-opacity", 0.9);
-
-                    gradient.append("stop")
-                        .attr("offset", "70%")
-                        .attr("stop-color", "black")
-                        .attr("stop-opacity", 0.6);
-
-                    gradient.append("stop")
-                        .attr("offset", "85%")
-                        .attr("stop-color", "black")
-                        .attr("stop-opacity", 0.3);
-
-                    gradient.append("stop")
-                        .attr("offset", "100%")
-                        .attr("stop-color", "black")
-                        .attr("stop-opacity", 0);
-
-                    revealGroup.append("path")
-                        .attr("d", shapeData.pathData)
-                        .attr("fill", `url(#${shapeData.gradientId})`)
-                        .attr("opacity", 1);
-                }
-            });
-            revealShapes = state.revealShapes;
+            revealShapes = state.revealShapes.map(s => ({
+                x:       s.x,
+                y:       s.y,
+                radius:  s.radius,
+                isFog:   s.isFog || false,
+                shapeId: s.shapeId || s.gradientId || `shape-${Date.now()}-${Math.random()}`
+            }));
+            rebuildMaskCanvas();
         }
 
         // Restore markers
@@ -1063,9 +967,15 @@ function resetMap() {
         // Clear localStorage
         localStorage.removeItem('mapState');
 
-        // Clear all reveal/fog shapes
-        revealGroup.selectAll("*").remove();
+        // Clear all reveal/fog shapes and reset mask to fully fogged
         revealShapes = [];
+        if (maskCanvas) {
+            const maskCtx = maskCanvas.getContext('2d');
+            maskCtx.globalCompositeOperation = 'source-over';
+            maskCtx.fillStyle = 'white';
+            maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+            renderFogCanvas();
+        }
 
         // Clear all markers
         markersGroup.selectAll("*").remove();
@@ -1153,20 +1063,10 @@ function undo() {
 
     switch (action.type) {
         case 'reveal':
-            if (action.action === 'add') {
-                // Remove the reveal shape
-                revealGroup.select(`#${action.data.gradientId}`).remove();
-                revealGroup.selectAll(`path[fill*="${action.data.gradientId}"]`).remove();
-                revealShapes = revealShapes.filter(s => s.gradientId !== action.data.gradientId);
-            }
-            break;
-
         case 'fog':
             if (action.action === 'add') {
-                // Remove the fog shape
-                revealGroup.select(`#${action.data.gradientId}`).remove();
-                revealGroup.selectAll(`path[fill*="${action.data.gradientId}"]`).remove();
-                revealShapes = revealShapes.filter(s => s.gradientId !== action.data.gradientId);
+                revealShapes = revealShapes.filter(s => s.shapeId !== action.data.shapeId);
+                rebuildMaskCanvas();
             }
             break;
 
@@ -1211,16 +1111,10 @@ function redo() {
 
     switch (action.type) {
         case 'reveal':
-            if (action.action === 'add') {
-                // Re-add the reveal shape
-                revealArea(action.data.x, action.data.y);
-            }
-            break;
-
         case 'fog':
             if (action.action === 'add') {
-                // Re-add the fog shape
-                addFog(action.data.x, action.data.y);
+                revealShapes.push(action.data);
+                rebuildMaskCanvas();
             }
             break;
 
