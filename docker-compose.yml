@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  nachtschall-map:
+    build: .
+    image: nachtschall-map:latest
+    restart: unless-stopped
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nachtschall.rule=Host(`nachtschall.seidel.life`)"
+      - "traefik.http.routers.nachtschall.entrypoints=web"
+      - "traefik.http.services.nachtschall.loadbalancer.server.port=3000"
+
+networks:
+  web:
+    external: true
