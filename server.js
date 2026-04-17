@@ -97,6 +97,14 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('action', action);
   });
 
+  // Viewer pings: allow any participant to send a short-lived ping visible to the room
+  socket.on('ping', (roomId, data) => {
+    const room = rooms[roomId];
+    if (!room) return;
+    // Broadcast ping to everyone in the room (including sender)
+    io.to(roomId).emit('ping', Object.assign({}, data, { from: socket.id }));
+  });
+
   socket.on('disconnecting', () => {
     // If owner leaves, promote someone else (first socket in room) or delete room
     for (const roomId of socket.rooms) {

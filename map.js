@@ -86,6 +86,61 @@ let isOwner = false;
 let suppressLocalEvents = false; // when applying remote events
 let pendingJoin = false;
 
+// Ensure ping styles exist
+function injectPingStyles() {
+        if (document.getElementById('ping-styles')) return;
+        const s = document.createElement('style');
+        s.id = 'ping-styles';
+        s.textContent = `
+        .map-ping {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            margin-left: -24px;
+            margin-top: -24px;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9999;
+            display: block;
+            transform: scale(0.2);
+            opacity: 0.9;
+            box-shadow: 0 0 0 2px rgba(255,255,255,0.06), 0 4px 18px rgba(0,0,0,0.6);
+            animation: pingPulse 1s ease-out infinite;
+        }
+        @keyframes pingPulse {
+            0% { transform: scale(0.2); opacity: 0.9; box-shadow: 0 0 0 0 rgba(255,255,255,0.12); }
+            60% { transform: scale(1.4); opacity: 0.6; box-shadow: 0 0 0 14px rgba(255,255,255,0.02); }
+            100% { transform: scale(1.8); opacity: 0; box-shadow: 0 0 0 24px rgba(255,255,255,0); }
+        }
+        `;
+        document.head.appendChild(s);
+}
+
+// Show a temporary ping at absolute map coordinates (x,y) for 5s
+function showPingAt(x, y, meta) {
+        injectPingStyles();
+        const containerEl = document.getElementById('map-container');
+        if (!containerEl) return;
+        const el = document.createElement('div');
+        el.className = 'map-ping';
+        // optional color/meta could be used later
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        // small visual core
+        el.style.background = 'radial-gradient(circle at 50% 40%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.2) 10%, rgba(255,255,255,0.05) 20%, rgba(255,255,255,0) 30%)';
+        containerEl.appendChild(el);
+        // Let animation run for 5s then remove
+        setTimeout(() => {
+                try { el.remove(); } catch (e) {}
+        }, 5000);
+}
+
+// Convenience: show ping from normalized coordinates
+function showPingNormalized(nx, ny, meta) {
+        const pt = denormalizePoint(nx, ny);
+        showPingAt(pt.x, pt.y, meta);
+}
+
 // Coordinate helpers: normalize coordinates to the map image space (0..1)
 function normalizePoint(x, y) {
     if (!mapDimensions || !mapDimensions.width || !mapDimensions.height) return { nx: 0, ny: 0 };
@@ -895,6 +950,17 @@ svg.on("mousemove touchmove", function(event) {
 svg.on("click", function(event) {
     // Only act on LEFT click if not dragging and Ctrl is not pressed
     if (!isDragging && !event.ctrlKey) {
+        // If we're in a room as a viewer, clicking should send a transient ping (5s)
+        if (currentRoomId && !isOwner && !pendingJoin) {
+            const [x, y] = d3.pointer(event, g.node());
+            // send normalized ping to server; server will broadcast to room
+            if (socket) {
+                const p = normalizePoint(x, y);
+                const pingId = `ping-${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+                socket.emit('ping', currentRoomId, { id: pingId, nx: p.nx, ny: p.ny, ttl: 5000 });
+            }
+            return;
+        }
         if (!canEdit()) return;
         const [x, y] = d3.pointer(event, g.node());
 
@@ -1702,6 +1768,16 @@ function connectSocket(cb) {
             }
         } finally {
             suppressLocalEvents = false;
+        }
+    });
+
+    socket.on('ping', (data) => {
+        try {
+            if (data && typeof data.nx === 'number') {
+                showPingNormalized(data.nx, data.ny, data);
+            }
+        } catch (e) {
+            console.warn('Failed to show ping', e);
         }
     });
 
