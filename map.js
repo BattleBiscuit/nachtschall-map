@@ -124,54 +124,45 @@ const brushIndicator = g.append("circle")
 // Store map dimensions globally
 let mapDimensions = {};
 
-// Create Gefängnis von Rabenfels - Using reference image
-function createRabenfelsMap() {
-    const cx = width / 2;
-    const cy = height / 2;
+// Map image state
+let mapImageDataUrl = null;
+let mapAspectRatio = 1;
 
-    // Calculate image dimensions - fill full width
-    const imgAspectRatio = 598 / 337; // width / height of reference image
+// Set up map and fog layers from the stored image data URL
+function setupMapLayers() {
+    if (!mapImageDataUrl) return;
 
-    // Always fit to full width
-    const imgWidth = width;
-    const imgHeight = imgWidth / imgAspectRatio;
-
+    const viewWidth = window.innerWidth;
+    const viewHeight = window.innerHeight;
+    const imgWidth = viewWidth;
+    const imgHeight = imgWidth / mapAspectRatio;
     const imgX = 0;
-    const imgY = cy - imgHeight / 2;
+    const imgY = viewHeight / 2 - imgHeight / 2;
 
-    // Store dimensions for fog overlay
-    mapDimensions = {
-        x: imgX,
-        y: imgY,
-        width: imgWidth,
-        height: imgHeight
-    };
+    mapDimensions = { x: imgX, y: imgY, width: imgWidth, height: imgHeight };
 
-    // Add the reference map image
+    mapGroup.selectAll("*").remove();
     mapGroup.append("image")
-        .attr("href", "rabenfels-map.png")
+        .attr("href", mapImageDataUrl)
         .attr("x", imgX)
         .attr("y", imgY)
         .attr("width", imgWidth)
         .attr("height", imgHeight)
         .attr("preserveAspectRatio", "xMidYMid meet");
+
+    const fogPadding = 0.2;
+    fogGroup.selectAll("*").remove();
+    fogGroup.append("image")
+        .attr("href", mapImageDataUrl)
+        .attr("x", imgX - imgWidth * fogPadding)
+        .attr("y", imgY - imgHeight * fogPadding)
+        .attr("width", imgWidth * (1 + fogPadding * 2))
+        .attr("height", imgHeight * (1 + fogPadding * 2))
+        .attr("preserveAspectRatio", "none")
+        .attr("class", "fog-overlay")
+        .attr("filter", "url(#fog-blur)")
+        .attr("mask", "url(#fog-mask)");
 }
-
-createRabenfelsMap();
-
-// Create fog overlay using heavily blurred version of the map
-// Make it larger than the actual map to avoid edge artifacts
-const fogPadding = 0.2; // 20% padding
-fogGroup.append("image")
-    .attr("href", "rabenfels-map.png")
-    .attr("x", mapDimensions.x - mapDimensions.width * fogPadding)
-    .attr("y", mapDimensions.y - mapDimensions.height * fogPadding)
-    .attr("width", mapDimensions.width * (1 + fogPadding * 2))
-    .attr("height", mapDimensions.height * (1 + fogPadding * 2))
-    .attr("preserveAspectRatio", "none") // Stretch to fill
-    .attr("class", "fog-overlay")
-    .attr("filter", "url(#fog-blur)") // Apply extreme blur
-    .attr("mask", "url(#fog-mask)");  // Apply mask for reveals
 
 
 // Function to reveal area at position with wonky fading effect
@@ -852,29 +843,9 @@ svg.on("mouseleave", function() {
 
 // Handle window resize
 window.addEventListener("resize", () => {
-    const newWidth = window.innerWidth;
-    const newHeight = window.innerHeight;
-
-    svg.attr("width", newWidth)
-        .attr("height", newHeight);
-
-    // Redraw the map
-    mapGroup.selectAll("*").remove();
-    createRabenfelsMap();
-
-    // Redraw fog overlay with new dimensions
-    const fogPadding = 0.2;
-    fogGroup.selectAll("image").remove();
-    fogGroup.append("image")
-        .attr("href", "rabenfels-map.png")
-        .attr("x", mapDimensions.x - mapDimensions.width * fogPadding)
-        .attr("y", mapDimensions.y - mapDimensions.height * fogPadding)
-        .attr("width", mapDimensions.width * (1 + fogPadding * 2))
-        .attr("height", mapDimensions.height * (1 + fogPadding * 2))
-        .attr("preserveAspectRatio", "none")
-        .attr("class", "fog-overlay")
-        .attr("filter", "url(#fog-blur)")
-        .attr("mask", "url(#fog-mask)");
+    svg.attr("width", window.innerWidth)
+        .attr("height", window.innerHeight);
+    setupMapLayers();
 });
 
 // Save state to localStorage
@@ -883,9 +854,13 @@ function saveToLocalStorage() {
         revealShapes: revealShapes,
         markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id, color: m.color, name: m.name || "" })),
         drawings: drawings,
-        brushSize: config.revealRadius
+        brushSize: config.revealRadius,
+        mapAspectRatio: mapAspectRatio
     };
     localStorage.setItem('mapState', JSON.stringify(state));
+    if (mapImageDataUrl) {
+        localStorage.setItem('mapImage', mapImageDataUrl);
+    }
 }
 
 // Load state from localStorage
@@ -1014,12 +989,18 @@ function loadFromLocalStorage() {
     }
 }
 
-// Load saved state after fog is set up
-setTimeout(() => {
-    loadFromLocalStorage();
-}, 100);
-
-// No initial reveal - map starts completely fogged
+// Initialize: load saved map image or show upload overlay
+const savedMapImage = localStorage.getItem('mapImage');
+if (savedMapImage) {
+    mapImageDataUrl = savedMapImage;
+    const savedStateStr = localStorage.getItem('mapState');
+    if (savedStateStr) {
+        try { mapAspectRatio = JSON.parse(savedStateStr).mapAspectRatio || 1; } catch(e) {}
+    }
+    setupMapLayers();
+    hideUploadOverlay();
+    setTimeout(() => loadFromLocalStorage(), 100);
+}
 
 // Tool button functionality
 const revealToolBtn = document.getElementById('reveal-tool');
@@ -1366,3 +1347,67 @@ brushPreview.style.setProperty('--preview-size', '10px');
 
 // Initialize brush control visibility (reveal tool is active by default)
 document.getElementById('brush-control').classList.add('visible');
+
+// Upload overlay
+function showUploadOverlay() {
+    document.getElementById('upload-overlay').classList.remove('hidden');
+}
+
+function hideUploadOverlay() {
+    document.getElementById('upload-overlay').classList.add('hidden');
+}
+
+function handleImageFile(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const dataUrl = e.target.result;
+        const img = new Image();
+        img.onload = function() {
+            mapImageDataUrl = dataUrl;
+            mapAspectRatio = img.naturalWidth / img.naturalHeight;
+            setupMapLayers();
+            hideUploadOverlay();
+            saveToLocalStorage();
+        };
+        img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+}
+
+const mapFileInput = document.getElementById('map-file-input');
+const uploadDropZone = document.getElementById('upload-drop-zone');
+
+uploadDropZone.addEventListener('click', () => mapFileInput.click());
+
+mapFileInput.addEventListener('change', (e) => {
+    handleImageFile(e.target.files[0]);
+    mapFileInput.value = '';
+});
+
+uploadDropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadDropZone.classList.add('dragover');
+});
+
+uploadDropZone.addEventListener('dragleave', () => {
+    uploadDropZone.classList.remove('dragover');
+});
+
+uploadDropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadDropZone.classList.remove('dragover');
+    handleImageFile(e.dataTransfer.files[0]);
+});
+
+document.getElementById('load-map-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    showUploadOverlay();
+});
+
+// Allow dismissing the overlay by clicking the backdrop (only when a map is already loaded)
+document.getElementById('upload-overlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('upload-overlay') && mapImageDataUrl) {
+        hideUploadOverlay();
+    }
+});

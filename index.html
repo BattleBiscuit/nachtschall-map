@@ -300,6 +300,91 @@
             letter-spacing: 0.5px;
             margin-bottom: -3px;
         }
+
+        /* Upload overlay */
+        #upload-overlay {
+            position: fixed;
+            inset: 0;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+
+        #upload-overlay.hidden {
+            display: none;
+        }
+
+        #upload-card {
+            background: linear-gradient(145deg, #2a2a2a, #1f1f1f);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        }
+
+        #upload-card h2 {
+            color: #ddd;
+            font-family: sans-serif;
+            font-size: 22px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        #upload-subtitle {
+            color: #666;
+            font-family: sans-serif;
+            font-size: 14px;
+            margin-bottom: 24px;
+        }
+
+        #upload-drop-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 40px 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #888;
+            font-family: sans-serif;
+        }
+
+        #upload-drop-zone:hover,
+        #upload-drop-zone.dragover {
+            border-color: rgba(100, 150, 255, 0.5);
+            background: rgba(100, 150, 255, 0.05);
+            color: #aaa;
+        }
+
+        #upload-drop-zone svg {
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            margin: 0 auto 16px;
+            display: block;
+        }
+
+        #upload-drop-zone p {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        #upload-browse-hint {
+            font-size: 13px !important;
+            color: #666;
+            margin-top: 6px !important;
+            font-weight: normal !important;
+        }
+
+        #map-file-input {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -353,6 +438,30 @@
                 <circle cx="11" cy="11" r="2"></circle>
             </svg>
         </button>
+        <button class="tool-button" id="load-map-btn" title="Load Map Image" style="margin-top: 10px;">
+            <svg viewBox="0 0 24 24">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+        </button>
+    </div>
+
+    <div id="upload-overlay">
+        <div id="upload-card">
+            <h2>Load Map Image</h2>
+            <p id="upload-subtitle">Add a map image to get started</p>
+            <div id="upload-drop-zone">
+                <svg viewBox="0 0 24 24" width="48" height="48">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <p>Drop image here</p>
+                <p id="upload-browse-hint">or click to browse</p>
+                <input type="file" id="map-file-input" accept="image/*">
+            </div>
+        </div>
     </div>
 
     <div id="undo-redo-controls" style="position: fixed; bottom: 20px; left: 20px; display: flex; gap: 10px; z-index: 1000;">
