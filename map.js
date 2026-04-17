@@ -1893,10 +1893,10 @@ function joinRoom(roomId, cb) {
 
 // Update UI depending on whether current client can edit
 function updateUIForRole() {
-    // Elements to hide for viewers (keep map load button visible so chooser is always accessible)
+    // Elements to hide for viewers; viewers should only see the lobby and ping UI
     const toHide = [
-        'reveal-tool', 'tool-2', 'draw-tool',
-        'undo-btn', 'redo-btn', 'reset-btn', 'brush-control'
+        'reveal-tool', 'draw-tool', 'load-map-btn',
+        'undo-btn', 'redo-btn', 'reset-btn', 'brush-control', 'color-palette'
     ];
     toHide.forEach(id => {
         const el = document.getElementById(id);
@@ -1913,17 +1913,37 @@ function updateUIForRole() {
     const lobby = document.getElementById('lobby-btn');
     if (lobby) lobby.style.display = '';
 
-    // Show the shared color palette for viewers so they can pick ping colors
+    const viewer = (currentRoomId && !isOwner && !pendingJoin);
+
+    // If viewer, hide marker menu and show ping/color palette so viewers can ping
+    if (viewer) {
+        // Force color palette visible for viewers
+        paletteForcedOpen = true;
+        const colorPaletteEl = document.getElementById('color-palette');
+        if (colorPaletteEl) {
+            colorPaletteEl.classList.add('visible');
+            colorPaletteEl.style.display = '';
+        }
+
+        // Hide marker tool and related toggle so viewers cannot access marker UI
+        const markerBtn = document.getElementById('tool-2');
+        if (markerBtn) { markerBtn.style.display = 'none'; }
+        // leave palette toggle visible so viewers can open/close the color picker if desired
+
+        // Ensure lobby button remains visible
+        const lobby = document.getElementById('lobby-btn');
+        if (lobby) { lobby.style.display = ''; }
+
+        return;
+    }
+
+    // Non-viewer behavior: ensure palette visibility follows forced-open or owner/tool state
     const colorPaletteEl = document.getElementById('color-palette');
     if (colorPaletteEl) {
         if (paletteForcedOpen) {
             colorPaletteEl.classList.add('visible');
             colorPaletteEl.style.display = '';
-        } else if (currentRoomId && !isOwner && !pendingJoin) {
-            colorPaletteEl.classList.add('visible');
-            colorPaletteEl.style.display = '';
         } else {
-            // For owners, visibility is controlled by active tool state elsewhere
             colorPaletteEl.classList.remove('visible');
         }
     }
