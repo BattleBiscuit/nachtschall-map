@@ -5,14 +5,33 @@ services:
     build: .
     image: nachtschall-map:latest
     restart: unless-stopped
+    ports:
+      - "3000:3000"
     networks:
       - web
+      - internal
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.nachtschall.rule=Host(`nachtschall.seidel.life`)"
       - "traefik.http.routers.nachtschall.entrypoints=web"
       - "traefik.http.services.nachtschall.loadbalancer.server.port=3000"
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks:
+      - internal
+    volumes:
+      - redis-data:/data
+
 networks:
   web:
     external: true
+  internal:
+
+volumes:
+  redis-data:

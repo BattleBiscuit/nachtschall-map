@@ -1097,6 +1097,8 @@ function loadFromLocalStorage() {
 
 // Initialize: keep users in the lobby/upload overlay on page load instead of auto-loading a map
 const savedMapImage = localStorage.getItem('mapImage');
+const willAutoRejoin = localStorage.getItem('lastLobby') && localStorage.getItem('wasInRoom') === 'true';
+
 if (savedMapImage) {
     // Preserve the saved image in memory (so the lobby can load it if owner chooses),
     // but do not automatically render it — stay in the lobby/menu to avoid surprising the user.
@@ -1105,8 +1107,10 @@ if (savedMapImage) {
     if (savedStateStr) {
         try { mapAspectRatio = JSON.parse(savedStateStr).mapAspectRatio || 1; } catch(e) {}
     }
-    // Show the upload/lobby overlay so user stays in menu on first access
-    showUploadOverlay();
+    // Only show overlay if we're NOT auto-rejoining
+    if (!willAutoRejoin) {
+        showUploadOverlay();
+    }
     // Defer loading any saved state until user explicitly loads the map via the UI
 }
 
@@ -1756,7 +1760,30 @@ document.addEventListener('DOMContentLoaded', () => {
             toolOverlay.appendChild(palBtn);
         }
 
-        // Do not auto-join last lobby on page load. Keep user in lobby/menu until they choose to join.
+        // Auto-rejoin last lobby on page load
+        const lastLobby = localStorage.getItem('lastLobby');
+        const wasInRoom = localStorage.getItem('wasInRoom') === 'true';
+        if (lastLobby && wasInRoom) {
+            console.log('Auto-rejoining room:', lastLobby);
+            // Hide the overlay immediately
+            hideUploadOverlay();
+            connectSocket(() => {
+                joinRoom(lastLobby, (res) => {
+                    if (!res || !res.ok) {
+                        console.log('Failed to rejoin room:', res?.error || 'Unknown error');
+                        // Clear invalid room ID and show overlay again
+                        localStorage.removeItem('lastLobby');
+                        localStorage.removeItem('wasInRoom');
+                        showUploadOverlay();
+                    } else {
+                        console.log('Successfully rejoined room');
+                    }
+                });
+            });
+        } else {
+            // Clean up stale flags
+            localStorage.removeItem('wasInRoom');
+        }
     }, 50);
 });
 
@@ -1768,7 +1795,11 @@ function createLobby() {
                 if (res && res.ok) {
                     currentRoomId = res.roomId;
                     isOwner = true;
-                    try { localStorage.setItem('lastLobby', currentRoomId); } catch (e) {}
+                    try {
+                        localStorage.setItem('lastLobby', currentRoomId);
+                        localStorage.setItem('wasInRoom', 'true');
+                    } catch (e) {}
+                    hideUploadOverlay();
                     updateUIForRole();
                     alert('Created room ' + currentRoomId + '. Others can join with this ID.');
                     // ensure we broadcast initial map
@@ -1929,7 +1960,10 @@ function joinRoom(roomId, cb) {
         if (res.snapshot) applyRemoteSnapshot(res.snapshot);
         hideUploadOverlay();
         // For viewers, clear stored map state and only remember the lobby id
-        try { localStorage.setItem('lastLobby', roomId); } catch (e) {}
+        try {
+            localStorage.setItem('lastLobby', roomId);
+            localStorage.setItem('wasInRoom', 'true');
+        } catch (e) {}
         if (!isOwner) {
             localStorage.removeItem('mapState');
             localStorage.removeItem('mapImage');
