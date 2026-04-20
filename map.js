@@ -88,6 +88,22 @@ let pendingJoin = false;
 // Viewer ping color (defaults to blue)
 let viewerPingColor = 'blue';
 
+// URL-based room routing helpers
+function getRoomFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('room');
+}
+
+function updateURL(roomId) {
+    const url = new URL(window.location);
+    if (roomId) {
+        url.searchParams.set('room', roomId);
+    } else {
+        url.searchParams.delete('room');
+    }
+    window.history.pushState({}, '', url);
+}
+
 // Viewer ping uses the existing `#color-palette` UI (same choices as markers).
 
 // Ensure ping styles exist
@@ -1095,23 +1111,11 @@ function loadFromLocalStorage() {
     }
 }
 
-// Initialize: keep users in the lobby/upload overlay on page load instead of auto-loading a map
-const savedMapImage = localStorage.getItem('mapImage');
-const willAutoRejoin = localStorage.getItem('lastLobby') && localStorage.getItem('wasInRoom') === 'true';
-
-if (savedMapImage) {
-    // Preserve the saved image in memory (so the lobby can load it if owner chooses),
-    // but do not automatically render it — stay in the lobby/menu to avoid surprising the user.
-    mapImageDataUrl = savedMapImage;
-    const savedStateStr = localStorage.getItem('mapState');
-    if (savedStateStr) {
-        try { mapAspectRatio = JSON.parse(savedStateStr).mapAspectRatio || 1; } catch(e) {}
-    }
-    // Only show overlay if we're NOT auto-rejoining
-    if (!willAutoRejoin) {
-        showUploadOverlay();
-    }
-    // Defer loading any saved state until user explicitly loads the map via the UI
+// Initialize: check URL for room parameter
+const roomFromURL = getRoomFromURL();
+if (!roomFromURL) {
+    // No room in URL - show lobby
+    showUploadOverlay();
 }
 
 // If there is no saved map, but the project ships a single map in maps.json,
@@ -1587,6 +1591,14 @@ function handleImageFile(file) {
             setupMapLayers();
             hideUploadOverlay();
             saveToLocalStorage();
+
+            // If in a room as owner, broadcast the map
+            if (currentRoomId && isOwner && socket) {
+                socket.emit('action', currentRoomId, {
+                    type: 'setMap',
+                    data: { mapFile: mapImageDataUrl, mapAspectRatio }
+                });
+            }
         };
         img.src = dataUrl;
     };
@@ -1626,14 +1638,38 @@ document.getElementById('load-map-btn').addEventListener('click', (e) => {
     showUploadOverlay();
 });
 
-// Lobby button opens the same overlay (contains lobby controls)
+// Lobby button - goes back to lobby (clears room from URL)
 const lobbyBtn = document.getElementById('lobby-btn');
 if (lobbyBtn) {
     lobbyBtn.addEventListener('click', (e) => {
         e.stopPropagation();
+        // Leave room and go to lobby
+        currentRoomId = null;
+        isOwner = false;
+        updateURL(null);
         showUploadOverlay();
+        updateUIForRole();
     });
 }
+
+// Copy room ID button
+document.addEventListener('DOMContentLoaded', () => {
+    const copyBtn = document.getElementById('copy-room-btn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+            const roomId = document.getElementById('room-id-display').textContent;
+            const fullURL = window.location.origin + '/?room=' + roomId;
+            navigator.clipboard.writeText(fullURL).then(() => {
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+            }).catch(() => {
+                // Fallback
+                copyBtn.textContent = roomId;
+                setTimeout(() => { copyBtn.textContent = 'Copy'; }, 3000);
+            });
+        });
+    }
+});
 
 // --- Lobby UI ---
 // Simple lobby controls placed into the upload overlay for convenience
@@ -1760,29 +1796,22 @@ document.addEventListener('DOMContentLoaded', () => {
             toolOverlay.appendChild(palBtn);
         }
 
-        // Auto-rejoin last lobby on page load
-        const lastLobby = localStorage.getItem('lastLobby');
-        const wasInRoom = localStorage.getItem('wasInRoom') === 'true';
-        if (lastLobby && wasInRoom) {
-            console.log('Auto-rejoining room:', lastLobby);
-            // Hide the overlay immediately
-            hideUploadOverlay();
+        // Auto-join room from URL parameter
+        const urlRoom = getRoomFromURL();
+        if (urlRoom) {
+            console.log('Joining room from URL:', urlRoom);
             connectSocket(() => {
-                joinRoom(lastLobby, (res) => {
+                joinRoom(urlRoom, (res) => {
                     if (!res || !res.ok) {
-                        console.log('Failed to rejoin room:', res?.error || 'Unknown error');
-                        // Clear invalid room ID and show overlay again
-                        localStorage.removeItem('lastLobby');
-                        localStorage.removeItem('wasInRoom');
+                        console.log('Failed to join room:', res?.error || 'Unknown error');
+                        updateURL(null);
                         showUploadOverlay();
+                        alert('Room not found: ' + urlRoom);
                     } else {
-                        console.log('Successfully rejoined room');
+                        console.log('Successfully joined room from URL');
                     }
                 });
             });
-        } else {
-            // Clean up stale flags
-            localStorage.removeItem('wasInRoom');
         }
     }, 50);
 });
@@ -1795,16 +1824,17 @@ function createLobby() {
                 if (res && res.ok) {
                     currentRoomId = res.roomId;
                     isOwner = true;
-                    try {
-                        localStorage.setItem('lastLobby', currentRoomId);
-                        localStorage.setItem('wasInRoom', 'true');
-                    } catch (e) {}
-                    hideUploadOverlay();
+                    updateURL(currentRoomId);
                     updateUIForRole();
-                    alert('Created room ' + currentRoomId + '. Others can join with this ID.');
-                    // ensure we broadcast initial map
+
+                    // Only hide overlay if a map is already loaded
                     if (mapImageDataUrl) {
+                        hideUploadOverlay();
                         socket.emit('action', currentRoomId, { type: 'setMap', data: { mapFile: mapImageDataUrl, mapAspectRatio } });
+                        alert('Created room ' + currentRoomId + '. Others can join with this ID.');
+                    } else {
+                        // Stay in lobby/upload view - prompt to upload map
+                        alert('Room ' + currentRoomId + ' created. Please upload a map to start.');
                     }
                 } else {
                     alert('Failed to create room: ' + (res && res.error ? res.error : 'Unknown'));
@@ -1956,14 +1986,16 @@ function joinRoom(roomId, cb) {
         }
         currentRoomId = roomId;
         isOwner = (res.role === 'owner');
+        updateURL(roomId);
+
         // apply snapshot from server (denormalize handled in applyRemoteSnapshot)
         if (res.snapshot) applyRemoteSnapshot(res.snapshot);
-        hideUploadOverlay();
-        // For viewers, clear stored map state and only remember the lobby id
-        try {
-            localStorage.setItem('lastLobby', roomId);
-            localStorage.setItem('wasInRoom', 'true');
-        } catch (e) {}
+
+        // Only hide overlay if there's a map to show
+        if (res.snapshot && res.snapshot.mapFile) {
+            hideUploadOverlay();
+        }
+
         if (!isOwner) {
             localStorage.removeItem('mapState');
             localStorage.removeItem('mapImage');
@@ -1976,6 +2008,16 @@ function joinRoom(roomId, cb) {
 
 // Update UI depending on whether current client can edit
 function updateUIForRole() {
+    // Update room info display
+    const roomInfo = document.getElementById('room-info');
+    const roomIdDisplay = document.getElementById('room-id-display');
+    if (currentRoomId && isOwner) {
+        if (roomInfo) roomInfo.style.display = 'block';
+        if (roomIdDisplay) roomIdDisplay.textContent = currentRoomId;
+    } else {
+        if (roomInfo) roomInfo.style.display = 'none';
+    }
+
     // Elements to hide for viewers; viewers should only see the lobby and ping UI
     const toHide = [
         'reveal-tool', 'draw-tool', 'load-map-btn',
