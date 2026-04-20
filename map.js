@@ -315,26 +315,41 @@ function drawRevealOnMask(x, y, radius) {
     // so this maps SVG map-space coords into fog-texture canvas coords
     const mx = x - fogTextureDims.x;
     const my = y - fogTextureDims.y;
-    const numBlobs = 4 + Math.floor(Math.random() * 4);
-
     maskCtx.globalCompositeOperation = 'destination-out';
-    for (let i = 0; i < numBlobs; i++) {
-        const angle = (i / numBlobs) * Math.PI * 2 + Math.random();
-        const dist  = radius * 0.15 * Math.random();
-        const bx    = mx + Math.cos(angle) * dist;
-        const by    = my + Math.sin(angle) * dist;
-        const br    = radius * (0.75 + Math.random() * 0.3);
-        const g     = maskCtx.createRadialGradient(bx, by, 0, bx, by, br);
-        g.addColorStop(0,    'rgba(0,0,0,1)');
-        g.addColorStop(0.4,  'rgba(0,0,0,0.9)');
-        g.addColorStop(0.7,  'rgba(0,0,0,0.6)');
-        g.addColorStop(0.85, 'rgba(0,0,0,0.3)');
-        g.addColorStop(1,    'rgba(0,0,0,0)');
-        maskCtx.fillStyle = g;
-        maskCtx.beginPath();
-        maskCtx.arc(bx, by, br, 0, Math.PI * 2);
-        maskCtx.fill();
+
+    // Create torn paper edge effect
+    const numPoints = 20 + Math.floor(Math.random() * 10);
+    maskCtx.beginPath();
+
+    for (let i = 0; i <= numPoints; i++) {
+        const angle = (i / numPoints) * Math.PI * 2;
+        // Vary radius to create jagged edges
+        const variance = 0.3 + Math.random() * 0.4;
+        const r = radius * variance;
+        // Add some irregularity to the angle
+        const angleOffset = (Math.random() - 0.5) * 0.3;
+        const finalAngle = angle + angleOffset;
+
+        const px = mx + Math.cos(finalAngle) * r;
+        const py = my + Math.sin(finalAngle) * r;
+
+        if (i === 0) {
+            maskCtx.moveTo(px, py);
+        } else {
+            maskCtx.lineTo(px, py);
+        }
     }
+
+    maskCtx.closePath();
+    maskCtx.fillStyle = 'rgba(0,0,0,1)';
+    maskCtx.fill();
+
+    // Add slight shadow/feathering on edges for depth
+    maskCtx.shadowColor = 'rgba(0,0,0,0.5)';
+    maskCtx.shadowBlur = 3;
+    maskCtx.fill();
+    maskCtx.shadowBlur = 0;
+
     maskCtx.globalCompositeOperation = 'source-over';
 }
 
