@@ -1653,10 +1653,7 @@ uploadDropZone.addEventListener('drop', (e) => {
     }
 });
 
-document.getElementById('load-map-btn').addEventListener('click', (e) => {
-    e.stopPropagation();
-    showUploadOverlay();
-});
+// Load map button removed from UI
 
 // Lobby button - goes back to home/lobby with confirmation
 const lobbyBtn = document.getElementById('lobby-btn');
@@ -2070,8 +2067,8 @@ function updateUIForRole() {
 
     // Elements to hide for viewers; viewers should only see the lobby and ping UI
     const toHide = [
-        'reveal-tool', 'draw-tool', 'load-map-btn',
-        'undo-btn', 'redo-btn', 'reset-btn', 'brush-control', 'color-palette'
+        'reveal-tool', 'draw-tool',
+        'undo-btn', 'redo-btn', 'reset-btn', 'brush-control'
     ];
     toHide.forEach(id => {
         const el = document.getElementById(id);
@@ -2090,6 +2087,9 @@ function updateUIForRole() {
 
     const viewer = (currentRoomId && !isOwner && !pendingJoin);
 
+    // Palette toggle button visibility
+    const paletteToggleBtn = document.getElementById('palette-toggle-btn');
+
     // If viewer, hide marker menu and show ping/color palette so viewers can ping
     if (viewer) {
         // Force color palette visible for viewers
@@ -2100,10 +2100,12 @@ function updateUIForRole() {
             colorPaletteEl.style.display = '';
         }
 
+        // Show palette toggle for viewers
+        if (paletteToggleBtn) paletteToggleBtn.style.display = '';
+
         // Hide marker tool and related toggle so viewers cannot access marker UI
         const markerBtn = document.getElementById('tool-2');
         if (markerBtn) { markerBtn.style.display = 'none'; }
-        // leave palette toggle visible so viewers can open/close the color picker if desired
 
         // Ensure lobby button remains visible
         const lobby = document.getElementById('lobby-btn');
@@ -2112,15 +2114,15 @@ function updateUIForRole() {
         return;
     }
 
-    // Non-viewer behavior: ensure palette visibility follows forced-open or owner/tool state
+    // Owner/non-viewer behavior
+    // Hide palette toggle button for owners
+    if (paletteToggleBtn) paletteToggleBtn.style.display = 'none';
+
+    // Hide color palette for owners
     const colorPaletteEl = document.getElementById('color-palette');
     if (colorPaletteEl) {
-        if (paletteForcedOpen) {
-            colorPaletteEl.classList.add('visible');
-            colorPaletteEl.style.display = '';
-        } else {
-            colorPaletteEl.classList.remove('visible');
-        }
+        colorPaletteEl.classList.remove('visible');
+        colorPaletteEl.style.display = 'none';
     }
 }
 
