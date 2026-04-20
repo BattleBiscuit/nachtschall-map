@@ -88,6 +88,9 @@ let pendingJoin = false;
 // Viewer ping color (defaults to blue)
 let viewerPingColor = 'blue';
 
+// Palette forced-open flag so user toggles persist until explicitly changed
+let paletteForcedOpen = false;
+
 // URL-based room routing helpers
 function getRoomFromURL() {
     const params = new URLSearchParams(window.location.search);
@@ -1133,9 +1136,9 @@ if (!roomFromURL) {
     showUploadOverlay();
 }
 
-// If there is no saved map, but the project ships a single map in maps.json,
+// If there is no saved map and no room in URL, check if the project ships a single map in maps.json
 // auto-load it for convenience. This works for static setups (no Node required).
-if (!savedMapImage) {
+if (!roomFromURL && !mapImageDataUrl) {
     // Try relative path first (works with static hosting and subpaths),
     // then fall back to absolute root.
     const fetchMapsJson = () => fetch('maps.json').then(r => { if (!r.ok) throw r; return r.json(); })
@@ -1421,6 +1424,11 @@ function redo() {
 }
 
 function updateUndoRedoButtons() {
+    // Check if buttons exist (may not be initialized yet)
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
+    if (!undoBtn || !redoBtn) return;
+
     if (historyIndex < 0) {
         undoBtn.style.opacity = '0.5';
         undoBtn.style.cursor = 'not-allowed';
@@ -1506,9 +1514,6 @@ brushPreview.style.setProperty('--preview-size', '10px');
 
 // Initialize brush control visibility (reveal tool is active by default)
 document.getElementById('brush-control').classList.add('visible');
-
-// Palette forced-open flag so user toggles persist until explicitly changed
-let paletteForcedOpen = false;
 
 // Upload overlay
 function showUploadOverlay() {
@@ -1653,17 +1658,47 @@ document.getElementById('load-map-btn').addEventListener('click', (e) => {
     showUploadOverlay();
 });
 
-// Lobby button - goes back to lobby (clears room from URL)
+// Lobby button - goes back to home/lobby with confirmation
 const lobbyBtn = document.getElementById('lobby-btn');
 if (lobbyBtn) {
     lobbyBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        // Leave room and go to lobby
+
+        // Show confirmation dialog
+        const confirmed = confirm('Leave this room and return to lobby? This will disconnect you from the session.');
+        if (!confirmed) return;
+
+        // Disconnect from socket if connected
+        if (socket) {
+            socket.disconnect();
+            socket = null;
+        }
+
+        // Clear room state
         currentRoomId = null;
         isOwner = false;
+
+        // Clear URL
         updateURL(null);
+
+        // Clear local map state
+        localStorage.removeItem('mapState');
+        localStorage.removeItem('mapImage');
+
+        // Reset map
+        mapImageDataUrl = null;
+        revealShapes = [];
+        markers = [];
+        drawings = [];
+
+        // Show lobby
         showUploadOverlay();
         updateUIForRole();
+
+        // Reconnect socket for future use
+        setTimeout(() => {
+            connectSocket(() => {});
+        }, 500);
     });
 }
 
