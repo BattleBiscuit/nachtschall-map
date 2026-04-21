@@ -16,9 +16,10 @@ services:
       - redis
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.nachtschall.rule=Host(`nachtschall-map.seidel.life`)"
-      - "traefik.http.routers.nachtschall.entrypoints=web"
-      - "traefik.http.services.nachtschall.loadbalancer.server.port=3000"
+      - "traefik.http.routers.nachtschall-map.rule=Host(`nachtschall-map.seidel.life`)"
+      - "traefik.http.routers.nachtschall-map.entrypoints=web"
+      - "traefik.http.routers.nachtschall-map.tls.certresolver=le"
+      - "traefik.http.services.nachtschall-map.loadbalancer.server.port=3000"
 
   redis:
     image: redis:7-alpine
