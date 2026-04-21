@@ -6,7 +6,7 @@ services:
     image: nachtschall-map:latest
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "30005:3000"
     networks:
       - proxy
       - internal
