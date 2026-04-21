@@ -8,7 +8,7 @@ services:
     ports:
       - "3000:3000"
     networks:
-      - web
+      - proxy
       - internal
     environment:
       - REDIS_URL=redis://redis:6379
@@ -16,7 +16,7 @@ services:
       - redis
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.nachtschall.rule=Host(`nachtschall.seidel.life`)"
+      - "traefik.http.routers.nachtschall.rule=Host(`nachtschall-map.seidel.life`)"
       - "traefik.http.routers.nachtschall.entrypoints=web"
       - "traefik.http.services.nachtschall.loadbalancer.server.port=3000"
 
@@ -29,8 +29,8 @@ services:
       - redis-data:/data
 
 networks:
-  web:
-    external: true
+  proxy:
+    name: proxy
   internal:
 
 volumes:
