@@ -15,7 +15,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.nachtschall-map.rule=Host(`nachtschall-map.seidel.life`)"
-      - "traefik.http.routers.nachtschall-map.entrypoints=web"
+      - "traefik.http.routers.nachtschall-map.entrypoints=websecure"
       - "traefik.http.routers.nachtschall-map.tls.certresolver=le"
       - "traefik.http.services.nachtschall-map.loadbalancer.server.port=3000"
 
