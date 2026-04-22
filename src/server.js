@@ -11,6 +11,18 @@ const server = http.createServer(app);
 const io = new Server(server, {
   maxHttpBufferSize: 50 * 1024 * 1024, // 50MB - allow large map images as data URLs
   pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 10000,
+
+  // Performance: prefer WebSocket, skip long polling
+  transports: ['websocket', 'polling'],
+  allowUpgrades: true,
+
+  // Compression for large payloads
+  perMessageDeflate: {
+    threshold: 1024 // Compress messages larger than 1KB
+  },
+
   cors: {
     origin: '*'
   }
@@ -44,17 +56,58 @@ redis.on('connect', () => console.log('[redis] connected'));
   await redis.connect();
 })();
 
-// Room storage helpers
+// In-memory room cache for performance
+const roomCache = new Map();
+const pendingWrites = new Map();
+const WRITE_DEBOUNCE_MS = 500; // Write to Redis max once per 500ms per room
+
+// Room storage helpers with caching
 async function getRoom(roomId) {
+  // Check cache first
+  if (roomCache.has(roomId)) {
+    return roomCache.get(roomId);
+  }
+
+  // Cache miss - fetch from Redis
   const data = await redis.get(`room:${roomId}`);
-  return data ? JSON.parse(data) : null;
+  const room = data ? JSON.parse(data) : null;
+
+  if (room) {
+    roomCache.set(roomId, room);
+  }
+
+  return room;
 }
 
 async function setRoom(roomId, room) {
-  await redis.set(`room:${roomId}`, JSON.stringify(room));
+  // Update cache immediately
+  roomCache.set(roomId, room);
+
+  // Debounce Redis write to avoid hammering on rapid actions
+  if (pendingWrites.has(roomId)) {
+    clearTimeout(pendingWrites.get(roomId));
+  }
+
+  const timeoutId = setTimeout(async () => {
+    try {
+      await redis.set(`room:${roomId}`, JSON.stringify(room));
+      pendingWrites.delete(roomId);
+    } catch (err) {
+      console.error(`[redis] failed to write room ${roomId}:`, err);
+    }
+  }, WRITE_DEBOUNCE_MS);
+
+  pendingWrites.set(roomId, timeoutId);
 }
 
 async function deleteRoom(roomId) {
+  // Clear cache and pending writes
+  roomCache.delete(roomId);
+  if (pendingWrites.has(roomId)) {
+    clearTimeout(pendingWrites.get(roomId));
+    pendingWrites.delete(roomId);
+  }
+
   await redis.del(`room:${roomId}`);
 }
 
