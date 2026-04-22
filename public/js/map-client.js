@@ -199,6 +199,44 @@ function canEdit() {
     return ((!currentRoomId && !pendingJoin) || isOwner);
 }
 
+// Generate CSS polygon for torn paper edges
+function generateTornEdgePolygon(width, height) {
+    const tearSize = 12; // Maximum depth of tears in pixels
+    const tearFreq = 25; // Approximate distance between tears in pixels
+
+    const points = [];
+
+    // Top edge (left to right)
+    for (let x = 0; x <= width; x += tearFreq) {
+        const actualX = Math.min(x, width);
+        const tear = Math.random() * tearSize - tearSize / 2;
+        points.push(`${actualX}px ${Math.max(0, tear)}px`);
+    }
+
+    // Right edge (top to bottom)
+    for (let y = tearFreq; y <= height; y += tearFreq) {
+        const actualY = Math.min(y, height);
+        const tear = Math.random() * tearSize - tearSize / 2;
+        points.push(`${Math.min(width, width + tear)}px ${actualY}px`);
+    }
+
+    // Bottom edge (right to left)
+    for (let x = width - tearFreq; x >= 0; x -= tearFreq) {
+        const actualX = Math.max(x, 0);
+        const tear = Math.random() * tearSize - tearSize / 2;
+        points.push(`${actualX}px ${Math.min(height, height + tear)}px`);
+    }
+
+    // Left edge (bottom to top)
+    for (let y = height - tearFreq; y > 0; y -= tearFreq) {
+        const actualY = Math.max(y, 0);
+        const tear = Math.random() * tearSize - tearSize / 2;
+        points.push(`${Math.max(0, tear)}px ${actualY}px`);
+    }
+
+    return `polygon(${points.join(', ')})`;
+}
+
 // Set up map and fog layers from the stored image data URL
 function setupMapLayers() {
     if (!mapImageDataUrl) return;
@@ -250,7 +288,11 @@ function setupMapLayers() {
     }
     mapWrapper = document.createElement('div');
     mapWrapper.id = 'map-wrapper';
-    mapWrapper.style.cssText = `position:fixed;left:${imgX}px;top:${imgY}px;width:${imgWidth}px;height:${imgHeight}px;pointer-events:none;overflow:hidden;`;
+
+    // Generate torn paper edge polygon
+    const tornEdge = generateTornEdgePolygon(imgWidth, imgHeight);
+
+    mapWrapper.style.cssText = `position:fixed;left:${imgX}px;top:${imgY}px;width:${imgWidth}px;height:${imgHeight}px;pointer-events:none;overflow:visible;clip-path:${tornEdge};`;
     document.getElementById('map-container').appendChild(mapWrapper);
 
     // Position SVG within wrapper
