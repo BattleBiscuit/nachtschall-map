@@ -80,6 +80,59 @@ const overlaySvg = mainContainer.append("svg")
     .attr("width", window.innerWidth)
     .attr("height", window.innerHeight)
     .style("pointer-events", "none");
+
+// Shared gradient/filter definitions for 3D chip marker appearance
+const overlayDefs = overlaySvg.append("defs");
+
+// Helpers: mix hex color toward white (lighten) or black (darken)
+function lightenHex(hex, t) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `#${Math.min(255,Math.round(r+(255-r)*t)).toString(16).padStart(2,'0')}${Math.min(255,Math.round(g+(255-g)*t)).toString(16).padStart(2,'0')}${Math.min(255,Math.round(b+(255-b)*t)).toString(16).padStart(2,'0')}`;
+}
+function darkenHex(hex, t) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `#${Math.max(0,Math.round(r*(1-t))).toString(16).padStart(2,'0')}${Math.max(0,Math.round(g*(1-t))).toString(16).padStart(2,'0')}${Math.max(0,Math.round(b*(1-t))).toString(16).padStart(2,'0')}`;
+}
+
+// Drop shadow filter — softer and more diffuse than a wax seal (chips sit flat)
+const _shadowFilter = overlayDefs.append("filter")
+    .attr("id", "marker-shadow")
+    .attr("x", "-60%").attr("y", "-60%")
+    .attr("width", "220%").attr("height", "220%");
+_shadowFilter.append("feDropShadow")
+    .attr("dx", "0").attr("dy", "4")
+    .attr("stdDeviation", "4")
+    .attr("flood-color", "rgba(0,0,0,0.6)");
+
+// Per-color gradients for the chip face and beveled edge
+Object.entries(markerColors).forEach(([name, c]) => {
+    // Face: linear top→bottom, subtle — chips are flat, not spherical
+    const faceGrad = overlayDefs.append("linearGradient")
+        .attr("id", `marker-face-${name}`)
+        .attr("x1", "0").attr("y1", "0").attr("x2", "0").attr("y2", "1");
+    faceGrad.append("stop").attr("offset", "0%")
+        .attr("stop-color", lightenHex(c.fill, 0.10));
+    faceGrad.append("stop").attr("offset", "55%")
+        .attr("stop-color", c.fill);
+    faceGrad.append("stop").attr("offset", "100%")
+        .attr("stop-color", darkenHex(c.fill, 0.12));
+
+    // Rim bevel: linear top→bottom — lighter top catching light, darker bottom in shadow
+    const rimGrad = overlayDefs.append("linearGradient")
+        .attr("id", `marker-rim-${name}`)
+        .attr("x1", "0").attr("y1", "0").attr("x2", "0").attr("y2", "1");
+    rimGrad.append("stop").attr("offset", "0%")
+        .attr("stop-color", lightenHex(c.border, 0.35));
+    rimGrad.append("stop").attr("offset", "40%")
+        .attr("stop-color", c.border);
+    rimGrad.append("stop").attr("offset", "100%")
+        .attr("stop-color", darkenHex(c.border, 0.3));
+});
+
 const overlayG = overlaySvg.append("g");
 
 // Map layers (above fog)
@@ -652,28 +705,36 @@ function addMarker(x, y, color = null, providedId = null) {
         .attr("class", "marker")
         .attr("transform", `translate(${x}, ${y}) scale(0)`)
         .attr("data-color", markerColor)
+        .attr("filter", "url(#marker-shadow)")
         .style("cursor", "inherit")
         .style("pointer-events", "auto");
 
-    // Outer border ring (dark, for depth)
+    const sideH = Math.max(3, R * 0.2); // visible chip thickness
+
+    // Chip thickness — same disc offset downward to show the side edge
     markerGroup.append("circle")
         .attr("r", outerR)
-        .attr("fill", colors.border)
+        .attr("cy", sideH)
+        .attr("fill", colors.border);
+
+    // Beveled outer rim (lighter top, darker bottom — the rim of the disc)
+    markerGroup.append("circle")
+        .attr("r", outerR)
+        .attr("fill", `url(#marker-rim-${markerColor})`)
         .attr("class", "marker-outer");
 
-    // Main body (heraldic color)
+    // Chip face — flat linear gradient (slightly lighter top, slightly darker bottom)
     markerGroup.append("circle")
         .attr("r", R)
-        .attr("fill", colors.fill)
+        .attr("fill", `url(#marker-face-${markerColor})`)
         .attr("class", "marker-body");
 
-    // Inner gold decorative ring
+    // Inner gold inlay ring (like the decorative stripe on a casino chip)
     markerGroup.append("circle")
         .attr("r", innerR)
         .attr("fill", "none")
         .attr("stroke", gold)
-        .attr("stroke-width", Math.max(1, R * 0.07))
-        .attr("stroke-dasharray", `${R * 0.2} ${R * 0.12}`)
+        .attr("stroke-width", Math.max(1.5, R * 0.09))
         .attr("class", "marker-ring")
         .attr("pointer-events", "none");
 
@@ -682,6 +743,13 @@ function addMarker(x, y, color = null, providedId = null) {
         .attr("d", `M 0,${-d} L ${d},0 L 0,${d} L ${-d},0 Z`)
         .attr("fill", colors.ornament)
         .attr("class", "marker-ornament")
+        .attr("pointer-events", "none");
+
+    // Sheen band — broad horizontal highlight across upper face (resin/plastic chip look)
+    markerGroup.append("ellipse")
+        .attr("cx", 0).attr("cy", -R * 0.32)
+        .attr("rx", R * 0.62).attr("ry", R * 0.2)
+        .attr("fill", "rgba(255,255,255,0.10)")
         .attr("pointer-events", "none");
 
     // Text label (inside group, so it moves with the token)
@@ -814,8 +882,8 @@ function addMarker(x, y, color = null, providedId = null) {
                     markerData.color = selectedDialogColor;
                     const newColors = markerColors[selectedDialogColor];
                     markerData.element.attr("data-color", selectedDialogColor);
-                    markerData.element.select('.marker-outer').attr("fill", newColors.border);
-                    markerData.element.select('.marker-body').attr("fill", newColors.fill);
+                    markerData.element.select('.marker-outer').attr("fill", `url(#marker-rim-${selectedDialogColor})`);
+                    markerData.element.select('.marker-body').attr("fill", `url(#marker-face-${selectedDialogColor})`);
                     markerData.element.select('.marker-ornament').attr("fill", newColors.ornament);
                 }
 
