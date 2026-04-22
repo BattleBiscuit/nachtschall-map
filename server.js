@@ -6,13 +6,26 @@ const { createClient } = require('redis');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  maxHttpBufferSize: 50 * 1024 * 1024, // 50MB - allow large map images as data URLs
+  pingTimeout: 60000,
+  cors: {
+    origin: '*'
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
 
 // Serve static files from current directory
 app.use(express.static(path.join(__dirname)));
+
+// Route handler for /room/:code - serves map.html
+app.get('/room/:code', (req, res) => {
+  res.sendFile(path.join(__dirname, 'map.html'));
+});
+
+// Root path serves lobby (index.html is served by static middleware)
 
 // Initialize Redis client
 const redis = createClient({ url: REDIS_URL });
@@ -69,21 +82,25 @@ io.on('connection', (socket) => {
     // Check if this is the owner rejoining (room has no active owner socket)
     const roomSockets = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
     const ownerInRoom = roomSockets.includes(room.owner);
-    console.log(`[ws] room ${roomId} sockets:`, roomSockets, `owner ${room.owner} in room: ${ownerInRoom}`);
+
+    // Check if the original owner socket still exists globally
+    const ownerSocketExists = io.sockets.sockets.has(room.owner);
+
+    console.log(`[ws] room ${roomId} sockets:`, roomSockets, `owner ${room.owner} in room: ${ownerInRoom}, owner socket exists: ${ownerSocketExists}`);
 
     let role = 'viewer';
 
     if (socket.id === room.owner) {
       role = 'owner';
       console.log(`[ws] ${socket.id} is owner (exact match)`);
-    } else if (!ownerInRoom) {
-      // Owner socket is not in the room, so this must be the owner rejoining with a new socket ID
-      // Update the owner to the new socket ID
+    } else if (!ownerInRoom || !ownerSocketExists) {
+      // Owner socket is not in the room OR doesn't exist globally
+      // This means the owner disconnected and is rejoining with a new socket ID
       const oldOwner = room.owner;
       room.owner = socket.id;
       await setRoom(roomId, room);
       role = 'owner';
-      console.log(`[ws] owner of ${roomId} updated from ${oldOwner} to ${socket.id}`);
+      console.log(`[ws] owner of ${roomId} updated from ${oldOwner} to ${socket.id} (ownerInRoom: ${ownerInRoom}, ownerSocketExists: ${ownerSocketExists})`);
     } else {
       console.log(`[ws] ${socket.id} joining as viewer`);
     }

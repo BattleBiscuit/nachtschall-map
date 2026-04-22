@@ -91,20 +91,15 @@ let viewerPingColor = 'blue';
 // Palette forced-open flag so user toggles persist until explicitly changed
 let paletteForcedOpen = false;
 
-// URL-based room routing helpers
+// Path-based room routing helpers
 function getRoomFromURL() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('room');
+    // Extract room code from /room/:code path
+    const match = window.location.pathname.match(/^\/room\/([A-Z0-9]{6})$/i);
+    return match ? match[1].toUpperCase() : null;
 }
 
-function updateURL(roomId) {
-    const url = new URL(window.location);
-    if (roomId) {
-        url.searchParams.set('room', roomId);
-    } else {
-        url.searchParams.delete('room');
-    }
-    window.history.pushState({}, '', url);
+function redirectToLobby() {
+    window.location.href = '/';
 }
 
 // Viewer ping uses the existing `#color-palette` UI (same choices as markers).
@@ -1042,102 +1037,30 @@ window.addEventListener("resize", () => {
     setupMapLayers(); // recreates fog system + rebuilds mask via preRenderFogTexture
 });
 
-// Save state to localStorage
+// Save state to localStorage (removed - maps come from socket snapshot only)
 function saveToLocalStorage() {
-    // Only persist full map state for owners or when not in a room.
-    if (currentRoomId && !isOwner) {
-        // Viewers should only remember the last lobby they were in.
-        try { localStorage.setItem('lastLobby', currentRoomId); } catch (e) {}
-        // Remove any stored map to avoid conflicting local state
-        localStorage.removeItem('mapState');
-        localStorage.removeItem('mapImage');
-        return;
-    }
-
-    const state = {
-        revealShapes: revealShapes,
-        markers: markers.map(m => ({ x: m.x, y: m.y, id: m.id, color: m.color, name: m.name || "" })),
-        drawings: drawings,
-        brushSize: config.revealRadius,
-        mapAspectRatio: mapAspectRatio
-    };
-    localStorage.setItem('mapState', JSON.stringify(state));
-    if (mapImageDataUrl) {
-        localStorage.setItem('mapImage', mapImageDataUrl);
-    }
-}
-
-// Load state from localStorage
-function loadFromLocalStorage() {
-    const savedState = localStorage.getItem('mapState');
-    if (!savedState) return;
-
-    try {
-        const state = JSON.parse(savedState);
-
-        // Restore brush size
-        if (state.brushSize) {
-            config.revealRadius = state.brushSize;
-            brushSlider.value = state.brushSize;
-            updateBrushSize(state.brushSize);
-        }
-
-        // Restore reveal shapes — migrate old format (gradientId/pathData) to new {x,y,radius,isFog,shapeId}
-        if (state.revealShapes) {
-            revealShapes = state.revealShapes.map(s => ({
-                x:       s.x,
-                y:       s.y,
-                radius:  s.radius,
-                isFog:   s.isFog || false,
-                shapeId: s.shapeId || s.gradientId || `shape-${Date.now()}-${Math.random()}`
-            }));
-            rebuildMaskCanvas();
-        }
-
-        // Restore markers
-        if (state.markers) {
-            state.markers.forEach(markerData => {
-                const marker = addMarker(markerData.x, markerData.y, markerData.color || 'blue', markerData.id);
-                marker.isLoading = true; // Mark as loading to prevent saving during restore
-                // Restore marker name
-                if (markerData.name) {
-                    marker.name = markerData.name;
-                    marker.textElement.text(markerData.name);
-                }
-            });
-        }
-
-        // Restore drawings
-        if (state.drawings) {
-            state.drawings.forEach(drawingData => {
-                drawingGroup.append("path")
-                    .attr("id", drawingData.id)
-                    .attr("d", drawingData.pathData)
-                    .attr("fill", "none")
-                    .attr("stroke", markerColors[drawingData.color].stroke)
-                    .attr("stroke-width", drawingData.strokeWidth)
-                    .attr("stroke-linecap", "round")
-                    .attr("stroke-linejoin", "round")
-                    .attr("class", "drawing-path");
-
-                drawings.push(drawingData);
-                drawingIdCounter = Math.max(drawingIdCounter, parseInt(drawingData.id.split('-')[1]) + 1);
-            });
-        }
-    } catch (e) {
-        console.error('Failed to load map state:', e);
-    }
+    // No longer save map state to localStorage
+    // Maps are loaded from server via socket snapshot only
 }
 
 // Initialize: check URL for room parameter
 const roomFromURL = getRoomFromURL();
 if (!roomFromURL) {
-    // No room in URL - show lobby
-    showUploadOverlay();
+    // No room in URL - redirect to lobby
+    redirectToLobby();
+} else {
+    // Auto-connect to socket and join the room
+    connectSocket(() => {
+        joinRoom(roomFromURL, (res) => {
+            if (!res || !res.ok) {
+                console.log('Failed to join room:', res?.error || 'Unknown error');
+                redirectToLobby();
+            } else {
+                console.log('Successfully joined room from URL');
+            }
+        });
+    });
 }
-
-// Don't auto-load maps from maps.json anymore - user should explicitly choose from lobby
-// This prevents unexpected behavior after leaving a room and reloading
 
 // Tool button functionality
 const revealToolBtn = document.getElementById('reveal-tool');
@@ -1485,145 +1408,7 @@ brushPreview.style.setProperty('--preview-size', '10px');
 // Initialize brush control visibility (reveal tool is active by default)
 document.getElementById('brush-control').classList.add('visible');
 
-// Upload overlay
-function showUploadOverlay() {
-    const overlay = document.getElementById('upload-overlay');
-    overlay.classList.remove('hidden');
-
-    // Populate map chooser from server-side JSON list
-    const select = document.getElementById('map-select');
-    const preview = document.getElementById('map-preview');
-    const loadBtn = document.getElementById('map-load-button');
-
-    // Clear previous options (keep the placeholder)
-    select.querySelectorAll('option:not([value=""])').forEach(o => o.remove());
-
-    fetch('/maps.json')
-        .then(r => r.json())
-        .then(list => {
-            list.forEach(item => {
-                const opt = document.createElement('option');
-                opt.value = item.file;
-                opt.textContent = item.name || item.file;
-                if (item.preview) opt.dataset.preview = item.preview;
-                select.appendChild(opt);
-            });
-            // If there's only one map available, pre-select it but do NOT auto-load to avoid spoilers
-            if (list.length === 1) {
-                select.value = list[0].file;
-                // preview remains hidden until user checks 'Show preview' or clicks Load
-            }
-        })
-        .catch(() => {
-            // If maps.json not available, silently fail — chooser stays empty
-        });
-
-    // By default do not show the preview image to avoid spoilers. Add a checkbox to allow revealing it.
-    const previewToggle = document.createElement('div');
-    previewToggle.style.cssText = 'margin-top:8px;color:#ccc;font-size:13px;display:flex;align-items:center;gap:8px;justify-content:center;';
-    previewToggle.innerHTML = `<label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type=checkbox id="show-preview-checkbox"> Show preview</label>`;
-    preview.parentNode.insertBefore(previewToggle, preview);
-
-    select.onchange = () => {
-        const val = select.value;
-        if (!val) {
-            preview.style.display = 'none';
-            preview.src = '';
-            return;
-        }
-        const opt = select.selectedOptions[0];
-        const previewSrc = opt.dataset.preview || val;
-        const checked = document.getElementById('show-preview-checkbox') && document.getElementById('show-preview-checkbox').checked;
-        if (checked) {
-            preview.src = previewSrc;
-            preview.style.display = 'block';
-        } else {
-            preview.style.display = 'none';
-            preview.src = '';
-        }
-    };
-
-    loadBtn.onclick = (e) => {
-        e.stopPropagation();
-        const val = select.value;
-        if (!val) return;
-        // Load map by setting mapImageDataUrl to the selected file path
-        const img = new Image();
-        img.onload = function() {
-            mapImageDataUrl = val;
-            mapAspectRatio = img.naturalWidth / img.naturalHeight;
-            setupMapLayers();
-            hideUploadOverlay();
-            saveToLocalStorage();
-        };
-        img.onerror = function() {
-            alert('Failed to load selected map.');
-        };
-        img.src = val;
-    };
-    // Ensure lobby controls are present whenever overlay is shown
-    ensureLobbyControls();
-}
-
-function hideUploadOverlay() {
-    document.getElementById('upload-overlay').classList.add('hidden');
-}
-
-function handleImageFile(file) {
-    if (!file || !file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const dataUrl = e.target.result;
-        const img = new Image();
-        img.onload = function() {
-            mapImageDataUrl = dataUrl;
-            mapAspectRatio = img.naturalWidth / img.naturalHeight;
-            setupMapLayers();
-            hideUploadOverlay();
-            saveToLocalStorage();
-
-            // If in a room as owner, broadcast the map
-            if (currentRoomId && isOwner && socket) {
-                socket.emit('action', currentRoomId, {
-                    type: 'setMap',
-                    data: { mapFile: mapImageDataUrl, mapAspectRatio }
-                });
-            }
-        };
-        img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
-}
-
-
-const mapFileInput = document.getElementById('map-file-input');
-const uploadDropZone = document.getElementById('upload-drop-zone');
-
-// File input (Upload) handling — label triggers file dialog
-mapFileInput.addEventListener('change', (e) => {
-    handleImageFile(e.target.files[0]);
-    mapFileInput.value = '';
-});
-
-// Drag & drop support for raw upload area
-uploadDropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    uploadDropZone.classList.add('dragover');
-});
-
-uploadDropZone.addEventListener('dragleave', () => {
-    uploadDropZone.classList.remove('dragover');
-});
-
-uploadDropZone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    uploadDropZone.classList.remove('dragover');
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
-        handleImageFile(e.dataTransfer.files[0]);
-    }
-});
-
-// Load map button removed from UI
+// Upload overlay and file handling removed - maps are loaded via socket only
 
 // Lobby button - goes back to home/lobby with confirmation
 const lobbyBtn = document.getElementById('lobby-btn');
@@ -1641,31 +1426,8 @@ if (lobbyBtn) {
             socket = null;
         }
 
-        // Clear room state
-        currentRoomId = null;
-        isOwner = false;
-
-        // Clear URL
-        updateURL(null);
-
-        // Clear local map state
-        localStorage.removeItem('mapState');
-        localStorage.removeItem('mapImage');
-
-        // Reset map
-        mapImageDataUrl = null;
-        revealShapes = [];
-        markers = [];
-        drawings = [];
-
-        // Show lobby
-        showUploadOverlay();
-        updateUIForRole();
-
-        // Reconnect socket for future use
-        setTimeout(() => {
-            connectSocket(() => {});
-        }, 500);
+        // Redirect to lobby
+        redirectToLobby();
     });
 }
 
@@ -1675,7 +1437,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (copyBtn) {
         copyBtn.addEventListener('click', () => {
             const roomId = document.getElementById('room-id-display').textContent;
-            const fullURL = window.location.origin + '/?room=' + roomId;
+            const fullURL = window.location.origin + '/room/' + roomId;
             navigator.clipboard.writeText(fullURL).then(() => {
                 copyBtn.textContent = 'Copied!';
                 setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
@@ -1688,108 +1450,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// --- Lobby UI ---
-// Simple lobby controls placed into the upload overlay for convenience
-function ensureLobbyControls() {
-    const uploadCard = document.getElementById('upload-card');
-    if (!uploadCard) return;
-    if (document.getElementById('lobby-tabs')) return;
-
-    // Create tabs container
-    const tabs = document.createElement('div');
-    tabs.id = 'lobby-tabs';
-    tabs.style.cssText = 'margin-top:16px; display:flex; flex-direction:column; gap:12px;';
-
-    const tabHeader = document.createElement('div');
-    tabHeader.style.cssText = 'display:flex; gap:8px; justify-content:center;';
-
-    const joinTabBtn = document.createElement('button');
-    joinTabBtn.textContent = 'Join';
-    joinTabBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:#333;color:#ddd;border:1px solid rgba(255,255,255,0.08);cursor:pointer;';
-
-    const createTabBtn = document.createElement('button');
-    createTabBtn.textContent = 'Create';
-    createTabBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:transparent;color:#ddd;border:1px solid rgba(255,255,255,0.06);cursor:pointer;';
-
-    tabHeader.appendChild(joinTabBtn);
-    tabHeader.appendChild(createTabBtn);
-
-    const joinSection = document.createElement('div');
-    joinSection.id = 'join-section';
-    joinSection.style.cssText = 'display:flex;gap:8px;align-items:center;justify-content:center;';
-
-    const joinInput = document.createElement('input');
-    joinInput.placeholder = 'Room ID';
-    joinInput.style.cssText = 'padding:8px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.08);color:#ddd;';
-
-    const joinBtn = document.createElement('button');
-    joinBtn.textContent = 'Join';
-    joinBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:#3a3a3a;color:#ddd;border:1px solid rgba(255,255,255,0.08);cursor:pointer;';
-
-    joinSection.appendChild(joinInput);
-    joinSection.appendChild(joinBtn);
-
-    const createSection = document.createElement('div');
-    createSection.id = 'create-section';
-    createSection.style.cssText = 'display:none;flex-direction:column;gap:8px;align-items:center;justify-content:center;';
-
-    // Move existing upload-drop-zone into create section so map select/preview live there
-    const dropZone = document.getElementById('upload-drop-zone');
-    if (dropZone) {
-        createSection.appendChild(dropZone);
-    } else {
-        // fallback: create a minimal selector if drop zone missing
-        const fallback = document.createElement('div');
-        fallback.textContent = 'Map chooser unavailable';
-        createSection.appendChild(fallback);
-    }
-
-    // Create Lobby button lives in create section
-    const createBtn = document.createElement('button');
-    createBtn.textContent = 'Create Lobby';
-    createBtn.style.cssText = 'padding:8px 12px;border-radius:6px;background:#3a5a7a;color:#fff;border:none;cursor:pointer;';
-    createSection.appendChild(createBtn);
-
-    tabs.appendChild(tabHeader);
-    tabs.appendChild(joinSection);
-    tabs.appendChild(createSection);
-    uploadCard.appendChild(tabs);
-
-    // Tab switching
-    function showJoin() {
-        joinSection.style.display = '';
-        createSection.style.display = 'none';
-        joinTabBtn.style.background = '#3a3a3a';
-        createTabBtn.style.background = 'transparent';
-    }
-
-    function showCreate() {
-        joinSection.style.display = 'none';
-        createSection.style.display = '';
-        joinTabBtn.style.background = 'transparent';
-        createTabBtn.style.background = '#3a3a3a';
-    }
-
-    joinTabBtn.addEventListener('click', (e) => { e.stopPropagation(); showJoin(); });
-    createTabBtn.addEventListener('click', (e) => { e.stopPropagation(); showCreate(); });
-
-    // default to Join tab
-    showJoin();
-
-    // Wire actions
-    createBtn.onclick = () => { createLobby(); };
-    joinBtn.onclick = () => {
-        const roomId = joinInput.value.trim().toUpperCase();
-        if (!roomId) return alert('Enter Room ID');
-        if (!socket) connectSocket(() => joinRoom(roomId)); else joinRoom(roomId);
-    };
-}
-
-// Add lobby controls on load so the UI is present even if overlay hidden
+// DOMContentLoaded for initialization
 document.addEventListener('DOMContentLoaded', () => {
-    // Small timeout to allow DOM built
     setTimeout(() => {
-        ensureLobbyControls();
         updateUIForRole();
 
         // Create palette toggle button in tool overlay (one-off)
@@ -1812,68 +1475,10 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             toolOverlay.appendChild(palBtn);
         }
-
-        // Auto-join room from URL parameter
-        const urlRoom = getRoomFromURL();
-        if (urlRoom) {
-            console.log('Joining room from URL:', urlRoom);
-            connectSocket(() => {
-                joinRoom(urlRoom, (res) => {
-                    if (!res || !res.ok) {
-                        console.log('Failed to join room:', res?.error || 'Unknown error');
-                        updateURL(null);
-                        showUploadOverlay();
-                        alert('Room not found: ' + urlRoom);
-                    } else {
-                        console.log('Successfully joined room from URL');
-                    }
-                });
-            });
-        }
     }, 50);
 });
 
-// Robust createLobby helper: ensures socket is connected, emits createRoom and handles response
-function createLobby() {
-    const doCreate = () => {
-        try {
-            socket.emit('createRoom', { snapshot: buildLocalSnapshot() }, (res) => {
-                if (res && res.ok) {
-                    currentRoomId = res.roomId;
-                    isOwner = true;
-                    updateURL(currentRoomId);
-                    updateUIForRole();
-
-                    // Only hide overlay if a map is already loaded
-                    if (mapImageDataUrl) {
-                        hideUploadOverlay();
-                        socket.emit('action', currentRoomId, { type: 'setMap', data: { mapFile: mapImageDataUrl, mapAspectRatio } });
-                        alert('Created room ' + currentRoomId + '. Others can join with this ID.');
-                    } else {
-                        // Stay in lobby/upload view - prompt to upload map
-                        alert('Room ' + currentRoomId + ' created. Please upload a map to start.');
-                    }
-                } else {
-                    alert('Failed to create room: ' + (res && res.error ? res.error : 'Unknown'));
-                }
-            });
-        } catch (e) {
-            console.warn('createLobby failed', e);
-            alert('Unable to create lobby (socket error)');
-        }
-    };
-
-    if (!socket) {
-        connectSocket(() => {
-            doCreate();
-        });
-    } else if (socket && socket.connected) {
-        doCreate();
-    } else {
-        // socket exists but not connected - attempt reconnect then create
-        connectSocket(() => doCreate());
-    }
-}
+// createLobby function removed - room creation happens in lobby page only
 
 function connectSocket(cb) {
     if (socket) return cb && cb();
@@ -1990,7 +1595,7 @@ function connectSocket(cb) {
     });
 }
 
-// Join a room by id (top-level so auto-join can reuse it)
+// Join a room by id
 function joinRoom(roomId, cb) {
     if (!socket) {
         connectSocket(() => joinRoom(roomId, cb));
@@ -1998,28 +1603,20 @@ function joinRoom(roomId, cb) {
     }
     socket.emit('joinRoom', roomId, (res) => {
         if (!res || !res.ok) {
+            console.error('[joinRoom] Failed to join room:', res?.error);
             if (cb) cb({ ok: false, error: res && res.error });
+            else redirectToLobby();
             return;
         }
+        console.log('[joinRoom] Joined successfully, role:', res.role, 'hasSnapshot:', !!res.snapshot);
         currentRoomId = roomId;
         isOwner = (res.role === 'owner');
-        updateURL(roomId);
 
         // apply snapshot from server (denormalize handled in applyRemoteSnapshot)
         if (res.snapshot) applyRemoteSnapshot(res.snapshot);
 
-        // Only hide overlay if there's a map to show
-        if (res.snapshot && res.snapshot.mapFile) {
-            hideUploadOverlay();
-        }
-
-        if (!isOwner) {
-            localStorage.removeItem('mapState');
-            localStorage.removeItem('mapImage');
-        }
         updateUIForRole();
         if (cb) cb({ ok: true, role: res.role });
-        alert('Joined room ' + roomId + ' as ' + (isOwner ? 'owner' : 'viewer'));
     });
 }
 
@@ -2123,12 +1720,16 @@ function buildLocalSnapshot() {
 
 function applyRemoteSnapshot(snap) {
     if (!snap) return;
+    console.log('[applyRemoteSnapshot] Received snapshot:', { hasMapFile: !!snap.mapFile, mapAspectRatio: snap.mapAspectRatio, revealShapesCount: snap.revealShapes?.length || 0, markersCount: snap.markers?.length || 0 });
     suppressLocalEvents = true;
     try {
         if (snap.mapFile) {
+            console.log('[applyRemoteSnapshot] Loading map file, length:', snap.mapFile.length);
             mapImageDataUrl = snap.mapFile;
             mapAspectRatio = snap.mapAspectRatio || 1;
             setupMapLayers();
+        } else {
+            console.warn('[applyRemoteSnapshot] No map file in snapshot!');
         }
         if (snap.revealShapes) {
             // snap may contain normalized shapes (nx,ny,nradius) or absolute (x,y,radius)
@@ -2193,9 +1794,4 @@ function applyRemoteSnapshot(snap) {
     }
 }
 
-// Allow dismissing the overlay by clicking the backdrop (only when a map is already loaded)
-document.getElementById('upload-overlay').addEventListener('click', (e) => {
-    if (e.target === document.getElementById('upload-overlay') && mapImageDataUrl) {
-        hideUploadOverlay();
-    }
-});
+// Overlay dismiss functionality removed - no upload overlay on map page
