@@ -1519,25 +1519,6 @@ if (lobbyBtn) {
     });
 }
 
-// Copy room ID button
-document.addEventListener('DOMContentLoaded', () => {
-    const copyBtn = document.getElementById('copy-room-btn');
-    if (copyBtn) {
-        copyBtn.addEventListener('click', () => {
-            const roomId = document.getElementById('room-id-display').textContent;
-            const fullURL = window.location.origin + '/room/' + roomId;
-            navigator.clipboard.writeText(fullURL).then(() => {
-                copyBtn.textContent = 'Copied!';
-                setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
-            }).catch(() => {
-                // Fallback
-                copyBtn.textContent = roomId;
-                setTimeout(() => { copyBtn.textContent = 'Copy'; }, 3000);
-            });
-        });
-    }
-});
-
 // DOMContentLoaded for initialization
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
@@ -1710,11 +1691,15 @@ function joinRoom(roomId, cb) {
 
 // Update UI depending on whether current client can edit
 function updateUIForRole() {
-    // Update room info display
+    // Update room info display - show for everyone in a room
     const roomInfo = document.getElementById('room-info');
     const roomIdDisplay = document.getElementById('room-id-display');
-    if (currentRoomId && isOwner) {
-        if (roomInfo) roomInfo.style.display = 'block';
+    console.log('[updateUIForRole] currentRoomId:', currentRoomId, 'roomInfo:', !!roomInfo, 'roomIdDisplay:', !!roomIdDisplay);
+    if (currentRoomId) {
+        if (roomInfo) {
+            roomInfo.style.display = 'block';
+            console.log('[updateUIForRole] Showing room info');
+        }
         if (roomIdDisplay) roomIdDisplay.textContent = currentRoomId;
     } else {
         if (roomInfo) roomInfo.style.display = 'none';
