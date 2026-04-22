@@ -421,23 +421,21 @@ function renderFogCanvas() {
 // Paint a soft irregular reveal hole into the mask (destination-out removes opacity)
 function drawRevealOnMask(x, y, radius) {
     const maskCtx = maskCanvas.getContext('2d');
-    // fogTextureDims.x/y is mapDimensions.x/y minus the padding offset,
-    // so this maps SVG map-space coords into fog-texture canvas coords
     const mx = x - fogTextureDims.x;
     const my = y - fogTextureDims.y;
     maskCtx.globalCompositeOperation = 'destination-out';
 
-    // Create torn paper edge effect
-    const numPoints = 20 + Math.floor(Math.random() * 10);
+    // Create irregular polygon with smoother variations (like torn paper, not spiky)
+    const numPoints = 30 + Math.floor(Math.random() * 10); // More points = smoother
     maskCtx.beginPath();
 
     for (let i = 0; i <= numPoints; i++) {
         const angle = (i / numPoints) * Math.PI * 2;
-        // Vary radius to create jagged edges
-        const variance = 0.3 + Math.random() * 0.4;
+        // Bigger variance for more pronounced torn edges (0.65-1.0 range)
+        const variance = 0.65 + Math.random() * 0.35;
         const r = radius * variance;
-        // Add some irregularity to the angle
-        const angleOffset = (Math.random() - 0.5) * 0.3;
+        // Moderate angle offset for natural curves without spikes
+        const angleOffset = (Math.random() - 0.5) * 0.15;
         const finalAngle = angle + angleOffset;
 
         const px = mx + Math.cos(finalAngle) * r;
@@ -454,9 +452,9 @@ function drawRevealOnMask(x, y, radius) {
     maskCtx.fillStyle = 'rgba(0,0,0,1)';
     maskCtx.fill();
 
-    // Add slight shadow/feathering on edges for depth
-    maskCtx.shadowColor = 'rgba(0,0,0,0.5)';
-    maskCtx.shadowBlur = 3;
+    // Add soft feathering on edges for natural look
+    maskCtx.shadowColor = 'rgba(0,0,0,0.4)';
+    maskCtx.shadowBlur = 5;
     maskCtx.fill();
     maskCtx.shadowBlur = 0;
 
