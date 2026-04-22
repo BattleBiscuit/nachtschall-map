@@ -247,11 +247,16 @@ function setupMapLayers() {
 
     let mapPadding;
     if (isSmallMobile) {
-        mapPadding = { left: 15, right: 15, top: 80, bottom: 70 };
+        // Mobile portrait: corners (home top-left, reset top-right, undo/redo bottom)
+        // Room info top center, tools bottom center
+        mapPadding = { left: 10, right: 10, top: 70, bottom: 145 };
     } else if (isMobile) {
-        mapPadding = { left: 20, right: 20, top: 90, bottom: 80 };
+        // Tablet: same corner layout with slightly more space
+        mapPadding = { left: 15, right: 15, top: 75, bottom: 155 };
     } else {
-        mapPadding = { left: 120, right: 120, top: 100, bottom: 100 };
+        // Desktop: left side has controls (home, reset, undo/redo ~130px), bottom has tools (~110px)
+        // Top and right are mostly clear, so minimize padding there
+        mapPadding = { left: 130, right: 40, top: 40, bottom: 110 };
     }
 
     const viewWidth = window.innerWidth;
@@ -1258,6 +1263,7 @@ function setActiveTool(tool) {
         tool2Btn.title = 'Markers Tool - Add/Remove tokens';
         drawToolBtn.title = 'Drawing Tool - Freehand drawing';
         colorPalette.classList.remove('visible');
+        positionControlAboveButton(brushControl, revealToolBtn);
         brushControl.classList.add('visible');
         // Make markers non-interactive in reveal mode
         markersGroup.selectAll('.marker')
@@ -1268,6 +1274,7 @@ function setActiveTool(tool) {
         tool2Btn.title = 'Markers Tool (Active)';
         revealToolBtn.title = 'Reveal Tool';
         drawToolBtn.title = 'Drawing Tool - Freehand drawing';
+        positionControlAboveButton(colorPalette, tool2Btn);
         colorPalette.classList.add('visible');
         brushControl.classList.remove('visible');
         // Make markers interactive with grab cursor in marker mode
@@ -1279,6 +1286,7 @@ function setActiveTool(tool) {
         drawToolBtn.title = 'Drawing Tool (Active)';
         revealToolBtn.title = 'Reveal Tool';
         tool2Btn.title = 'Markers Tool - Add/Remove tokens';
+        positionControlAboveButton(colorPalette, drawToolBtn);
         colorPalette.classList.add('visible');
         brushControl.classList.remove('visible');
         // Make markers non-interactive in draw mode
@@ -1325,12 +1333,31 @@ function resetMap() {
     }
 }
 
+// Position control above a button
+function positionControlAboveButton(control, button) {
+    const buttonRect = button.getBoundingClientRect();
+    const controlRect = control.getBoundingClientRect();
+
+    // Position above the button, centered horizontally
+    const left = buttonRect.left + (buttonRect.width / 2);
+    const bottom = window.innerHeight - buttonRect.top + 10; // 10px gap above button
+
+    control.style.left = `${left}px`;
+    control.style.bottom = `${bottom}px`;
+    control.style.transform = 'translateX(-50%)';
+}
+
 revealToolBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (activeTool === 'reveal') {
         // Toggle brush control visibility
         const brushControl = document.getElementById('brush-control');
-        brushControl.classList.toggle('visible');
+        if (brushControl.classList.contains('visible')) {
+            brushControl.classList.remove('visible');
+        } else {
+            positionControlAboveButton(brushControl, revealToolBtn);
+            brushControl.classList.add('visible');
+        }
     } else {
         setActiveTool('reveal');
     }
@@ -1341,7 +1368,12 @@ tool2Btn.addEventListener('click', (e) => {
     if (activeTool === 'tool2') {
         // Toggle color palette visibility
         const colorPalette = document.getElementById('color-palette');
-        colorPalette.classList.toggle('visible');
+        if (colorPalette.classList.contains('visible')) {
+            colorPalette.classList.remove('visible');
+        } else {
+            positionControlAboveButton(colorPalette, tool2Btn);
+            colorPalette.classList.add('visible');
+        }
     } else {
         setActiveTool('tool2');
     }
@@ -1352,7 +1384,12 @@ drawToolBtn.addEventListener('click', (e) => {
     if (activeTool === 'draw') {
         // Toggle color palette visibility
         const colorPalette = document.getElementById('color-palette');
-        colorPalette.classList.toggle('visible');
+        if (colorPalette.classList.contains('visible')) {
+            colorPalette.classList.remove('visible');
+        } else {
+            positionControlAboveButton(colorPalette, drawToolBtn);
+            colorPalette.classList.add('visible');
+        }
     } else {
         setActiveTool('draw');
     }
