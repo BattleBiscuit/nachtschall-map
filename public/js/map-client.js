@@ -44,14 +44,15 @@ const markerColors = {
 
 let currentMarkerColor = 'blue';
 
-// Initialize SVG and dimensions
-const container = d3.select("#map-container");
-const width = window.innerWidth;
-const height = window.innerHeight;
+// Initialize containers
+const mainContainer = d3.select("#map-container");
 
-const svg = container.append("svg")
-    .attr("width", width)
-    .attr("height", height);
+// Create a map wrapper that will hold both SVG and fog canvas
+let mapWrapper = null;
+
+const svg = mainContainer.append("svg")
+    .attr("width", window.innerWidth)
+    .attr("height", window.innerHeight);
 
 // Create defs for clip-path (torn paper edges)
 const defs = svg.append("defs");
@@ -167,19 +168,20 @@ function showPingNormalized(nx, ny, meta) {
 }
 
 // Coordinate helpers: normalize coordinates to the map image space (0..1)
+// Coordinates are now relative to map wrapper (0,0) at top-left of map
 function normalizePoint(x, y) {
     if (!mapDimensions || !mapDimensions.width || !mapDimensions.height) return { nx: 0, ny: 0 };
     return {
-        nx: (x - mapDimensions.x) / mapDimensions.width,
-        ny: (y - mapDimensions.y) / mapDimensions.height
+        nx: x / mapDimensions.width,
+        ny: y / mapDimensions.height
     };
 }
 
 function denormalizePoint(nx, ny) {
     if (!mapDimensions || !mapDimensions.width || !mapDimensions.height) return { x: 0, y: 0 };
     return {
-        x: mapDimensions.x + nx * mapDimensions.width,
-        y: mapDimensions.y + ny * mapDimensions.height
+        x: nx * mapDimensions.width,
+        y: ny * mapDimensions.height
     };
 }
 
@@ -232,11 +234,37 @@ function setupMapLayers() {
 
     mapDimensions = { x: imgX, y: imgY, width: imgWidth, height: imgHeight };
 
+    // Create/update map wrapper container
+    if (mapWrapper) {
+        mapWrapper.remove();
+    }
+    mapWrapper = document.createElement('div');
+    mapWrapper.id = 'map-wrapper';
+    mapWrapper.style.cssText = `position:fixed;left:${imgX}px;top:${imgY}px;width:${imgWidth}px;height:${imgHeight}px;pointer-events:none;overflow:hidden;`;
+    document.getElementById('map-container').appendChild(mapWrapper);
+
+    // Position SVG within wrapper
+    svg.attr("width", imgWidth)
+        .attr("height", imgHeight)
+        .style("position", "absolute")
+        .style("left", "0")
+        .style("top", "0")
+        .style("pointer-events", "all");
+
+    // Move SVG into wrapper
+    mapWrapper.appendChild(svg.node());
+
+    // Update zoom translateExtent to match map size
+    zoom.translateExtent([
+        [0, 0],
+        [imgWidth, imgHeight]
+    ]);
+
     mapGroup.selectAll("*").remove();
     mapGroup.append("image")
         .attr("href", mapImageDataUrl)
-        .attr("x", imgX)
-        .attr("y", imgY)
+        .attr("x", 0)
+        .attr("y", 0)
         .attr("width", imgWidth)
         .attr("height", imgHeight)
         .attr("preserveAspectRatio", "xMidYMid meet");
@@ -267,13 +295,13 @@ function setupFogSystem() {
     fogCanvas = document.createElement('canvas');
     fogCanvas.id = 'fog-canvas';
 
-    // Size canvas to match map dimensions (not full viewport)
+    // Size canvas to match map dimensions
     fogCanvas.width = Math.ceil(mapDimensions.width);
     fogCanvas.height = Math.ceil(mapDimensions.height);
 
-    // Position canvas exactly over the map image
-    fogCanvas.style.cssText = `position:fixed;left:${mapDimensions.x}px;top:${mapDimensions.y}px;width:${mapDimensions.width}px;height:${mapDimensions.height}px;pointer-events:none;z-index:10;`;
-    document.getElementById('map-container').appendChild(fogCanvas);
+    // Position canvas inside the map wrapper at (0,0) - same coordinate system as SVG
+    fogCanvas.style.cssText = `position:absolute;left:0;top:0;width:${mapDimensions.width}px;height:${mapDimensions.height}px;pointer-events:none;z-index:10;`;
+    mapWrapper.appendChild(fogCanvas);
 
     // Pre-render the blurred fog texture (also creates maskCanvas at the same size)
     preRenderFogTexture();
@@ -288,8 +316,8 @@ function preRenderFogTexture() {
     fogTextureCanvas.width  = fW;
     fogTextureCanvas.height = fH;
     fogTextureDims = {
-        x: mapDimensions.x - mapDimensions.width  * fogPadding,
-        y: mapDimensions.y - mapDimensions.height * fogPadding,
+        x: -mapDimensions.width  * fogPadding,
+        y: -mapDimensions.height * fogPadding,
         w: fW,
         h: fH
     };
@@ -323,10 +351,8 @@ function renderFogCanvas() {
     ctx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
     ctx.save();
 
-    // Adjust transform coordinates since canvas is now positioned at map origin
-    // The canvas (0,0) is already at mapDimensions.x, mapDimensions.y in screen space
-    // So we need to offset the transform by the map position
-    ctx.translate(t.x - mapDimensions.x, t.y - mapDimensions.y);
+    // Apply zoom transform directly (SVG and canvas now share the same coordinate system)
+    ctx.translate(t.x, t.y);
     ctx.scale(t.k, t.k);
 
     // Draw pre-blurred fog texture
@@ -888,10 +914,10 @@ let isMiddleMouseDown = false;
 
 // Zoom behavior - now supports middle mouse button panning
 const zoom = d3.zoom()
-    .scaleExtent([config.initialZoom, config.maxZoom])
+    .scaleExtent([config.minZoom, config.maxZoom])
     .translateExtent([
         [0, 0],
-        [width, height]
+        [10000, 10000]  // Large extent, will be updated when map loads
     ])
     .filter((event) => {
         // Allow wheel zoom normally
