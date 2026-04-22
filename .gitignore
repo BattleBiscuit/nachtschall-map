@@ -35,3 +35,9 @@ tmp/
 # Misc
 .cache/
 .sass-cache/
+
+# Backup files
+*.backup
+*.old
+*.old-*
+*-old.*
