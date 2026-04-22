@@ -411,11 +411,11 @@ function revealArea(x, y) {
     addToHistory({ type: 'reveal', action: 'add', data: revealDataLocal });
     saveToLocalStorage();
 
-    // Emit normalized coordinates to server so other clients can denormalize
+    // Batch and emit normalized coordinates to server
     if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
         const p = normalizePoint(x, y);
         const nr = normalizeRadius(config.revealRadius);
-        socket.emit('action', currentRoomId, { type: 'reveal', data: { nx: p.nx, ny: p.ny, nradius: nr, isFog: false, shapeId } });
+        queueAction({ type: 'reveal', data: { nx: p.nx, ny: p.ny, nradius: nr, isFog: false, shapeId } });
     }
 }
 
@@ -436,7 +436,7 @@ function addFog(x, y) {
     if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
         const p = normalizePoint(x, y);
         const nr = normalizeRadius(config.revealRadius);
-        socket.emit('action', currentRoomId, { type: 'fog', data: { nx: p.nx, ny: p.ny, nradius: nr, isFog: true, shapeId } });
+        queueAction({ type: 'fog', data: { nx: p.nx, ny: p.ny, nradius: nr, isFog: true, shapeId } });
     }
 }
 
@@ -882,6 +882,34 @@ let isRightMouseDown = false;
 let isDragging = false;
 let lastRevealTime = 0;
 const revealThrottle = 50; // milliseconds
+
+// Batch reveal/fog actions for better network performance
+let pendingActions = [];
+let actionBatchTimeout = null;
+const ACTION_BATCH_DELAY = 100; // Send batched actions every 100ms
+
+function sendBatchedActions() {
+    if (pendingActions.length === 0) return;
+
+    if (socket && currentRoomId && isOwner) {
+        // Send all pending actions at once
+        pendingActions.forEach(action => {
+            socket.emit('action', currentRoomId, action);
+        });
+    }
+
+    pendingActions = [];
+    actionBatchTimeout = null;
+}
+
+function queueAction(action) {
+    pendingActions.push(action);
+
+    // Set timer to send batch if not already set
+    if (!actionBatchTimeout) {
+        actionBatchTimeout = setTimeout(sendBatchedActions, ACTION_BATCH_DELAY);
+    }
+}
 
 // Handle right-click (contextmenu) separately
 svg.on("contextmenu", function(event) {
