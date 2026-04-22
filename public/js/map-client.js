@@ -340,6 +340,39 @@ let fogTextureCanvas = null; // offscreen, pre-blurred fog texture
 let fogTextureDims = null;   // { x, y, w, h } in map-space
 let currentZoomTransform = d3.zoomIdentity;
 
+// Add paper grain texture overlay to fog
+function addPaperTexture(ctx, width, height) {
+    // Create subtle paper grain using random noise
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const data = imageData.data;
+
+    for (let i = 0; i < data.length; i += 4) {
+        // Add subtle random noise to create paper grain (±3% variation)
+        const noise = (Math.random() - 0.5) * 15;
+        data[i] = Math.min(255, Math.max(0, data[i] + noise));     // R
+        data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise)); // G
+        data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise)); // B
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+
+    // Add parchment color tint overlay
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillStyle = 'rgba(232, 215, 184, 0.3)'; // Warm parchment tint
+    ctx.fillRect(0, 0, width, height);
+
+    // Add subtle vignette darkening at edges
+    ctx.globalCompositeOperation = 'source-over';
+    const gradient = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.max(width, height) / 1.5);
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    gradient.addColorStop(0.7, 'rgba(0, 0, 0, 0)');
+    gradient.addColorStop(1, 'rgba(58, 47, 31, 0.15)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.globalCompositeOperation = 'source-over';
+}
+
 function setupFogSystem() {
     // (Re-)create the visible fog canvas - sized and positioned to match map bounds
     const existing = document.getElementById('fog-canvas');
@@ -389,6 +422,10 @@ function preRenderFogTexture() {
         const blurPx = Math.max(40, Math.round(mapDimensions.width * 0.08));
         ctx.filter = `blur(${blurPx}px)`;
         ctx.drawImage(img, 0, 0, fW, fH);
+
+        // Add paper texture overlay for aged parchment look
+        addPaperTexture(ctx, fW, fH);
+
         // Rebuild mask from any already-loaded revealShapes (covers resize + restore)
         rebuildMaskCanvas();
     };
