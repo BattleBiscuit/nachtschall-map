@@ -1773,11 +1773,14 @@ function updateUIForRole() {
     // Hide palette toggle button for owners
     if (paletteToggleBtn) paletteToggleBtn.style.display = 'none';
 
-    // Hide color palette for owners
+    // For owners, don't force hide the palette - let the tool switching control it
     const colorPaletteEl = document.getElementById('color-palette');
     if (colorPaletteEl) {
-        colorPaletteEl.classList.remove('visible');
-        colorPaletteEl.style.display = 'none';
+        colorPaletteEl.style.display = '';  // Reset display to allow CSS visibility control
+        // Remove visible class initially, but setActiveTool will add it when needed
+        if (!paletteForcedOpen) {
+            colorPaletteEl.classList.remove('visible');
+        }
     }
 }
 
