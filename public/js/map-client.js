@@ -203,8 +203,18 @@ function canEdit() {
 function setupMapLayers() {
     if (!mapImageDataUrl) return;
 
-    // Map padding: leave space for UI elements (120px left/right, 100px top/bottom)
-    const mapPadding = { left: 120, right: 120, top: 100, bottom: 100 };
+    // Map padding: leave space for UI elements - responsive based on viewport
+    const isMobile = window.innerWidth <= 768;
+    const isSmallMobile = window.innerWidth <= 480;
+
+    let mapPadding;
+    if (isSmallMobile) {
+        mapPadding = { left: 15, right: 15, top: 80, bottom: 70 };
+    } else if (isMobile) {
+        mapPadding = { left: 20, right: 20, top: 90, bottom: 80 };
+    } else {
+        mapPadding = { left: 120, right: 120, top: 100, bottom: 100 };
+    }
 
     const viewWidth = window.innerWidth;
     const viewHeight = window.innerHeight;
@@ -1116,12 +1126,7 @@ svg.on("mouseleave", function() {
 
 // Handle window resize
 window.addEventListener("resize", () => {
-    svg.attr("width", window.innerWidth)
-        .attr("height", window.innerHeight);
-    if (fogCanvas) {
-        fogCanvas.width  = window.innerWidth;
-        fogCanvas.height = window.innerHeight;
-    }
+    // Recalculate map layout for new viewport size
     setupMapLayers(); // recreates fog system + rebuilds mask via preRenderFogTexture
 });
 

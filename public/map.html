@@ -416,6 +416,167 @@
             color: #1a1410;
             font-size: 15px;
         }
+
+        /* Responsive Layout - Mobile & Tablet */
+        @media (max-width: 768px) {
+            /* Reduce border frame size */
+            #map-container::before {
+                border-width: 8px;
+            }
+
+            #map-container::after {
+                inset: 10px;
+            }
+
+            /* Room info - smaller and repositioned */
+            #room-info {
+                top: 15px !important;
+                left: 15px !important;
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+
+            #room-info .label {
+                font-size: 9px;
+            }
+
+            #room-id-display {
+                font-size: 13px;
+                letter-spacing: 1px;
+            }
+
+            #room-info::before {
+                width: 16px;
+                height: 16px;
+                top: -4px;
+                right: -4px;
+            }
+
+            /* Tool overlay - bottom center for mobile */
+            #tool-overlay {
+                top: auto;
+                bottom: 15px;
+                right: auto;
+                left: 50%;
+                transform: translateX(-50%);
+                flex-direction: row;
+                gap: 8px;
+            }
+
+            .tool-button {
+                width: 44px;
+                height: 44px;
+            }
+
+            .tool-button svg {
+                width: 20px;
+                height: 20px;
+            }
+
+            /* Color palette - move to top center */
+            #color-palette {
+                top: 15px;
+                right: auto;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+
+            #color-palette.visible {
+                transform: translateX(-50%);
+            }
+
+            #color-palette-container {
+                flex-direction: row;
+                padding: 8px 10px;
+            }
+
+            #color-buttons {
+                flex-direction: row;
+                gap: 6px;
+            }
+
+            .color-button {
+                width: 32px;
+                height: 32px;
+            }
+
+            /* Brush control - move to left side */
+            #brush-control {
+                top: 50%;
+                right: auto;
+                left: 15px;
+                transform: translateY(-50%);
+            }
+
+            #brush-control.visible {
+                transform: translateY(-50%);
+            }
+
+            /* Undo/redo - smaller and repositioned */
+            #undo-redo-controls {
+                bottom: 15px !important;
+                left: 15px !important;
+                gap: 6px;
+            }
+
+            #undo-redo-controls .tool-button {
+                width: 40px;
+                height: 40px;
+            }
+
+            /* Reset button - top right corner */
+            #reset-btn {
+                bottom: auto !important;
+                top: 15px !important;
+                right: 15px !important;
+                width: 40px !important;
+                height: 40px !important;
+            }
+
+            #reset-btn svg {
+                width: 18px;
+                height: 18px;
+            }
+        }
+
+        /* Mobile portrait - very small screens */
+        @media (max-width: 480px) {
+            #room-info {
+                font-size: 10px;
+                padding: 4px 8px;
+            }
+
+            #room-id-display {
+                font-size: 11px;
+            }
+
+            .tool-button {
+                width: 40px;
+                height: 40px;
+            }
+
+            .tool-button svg {
+                width: 18px;
+                height: 18px;
+            }
+
+            .color-button {
+                width: 28px;
+                height: 28px;
+            }
+
+            #tool-overlay {
+                gap: 6px;
+            }
+
+            #color-palette-container {
+                padding: 6px 8px;
+            }
+
+            #color-buttons {
+                gap: 4px;
+            }
+        }
     </style>
 </head>
 <body>
