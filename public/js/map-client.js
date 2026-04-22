@@ -1,3 +1,14 @@
+// Canvas 2D filter support detection (ctx.filter not available in Safari < 18)
+const supportsCanvasFilter = (() => {
+    try {
+        const ctx = document.createElement('canvas').getContext('2d');
+        ctx.filter = 'blur(1px)';
+        return ctx.filter === 'blur(1px)';
+    } catch (e) {
+        return false;
+    }
+})();
+
 // Map configuration
 const config = {
     revealRadius: 60,
@@ -32,14 +43,14 @@ let isUndoRedoAction = false; // Flag to prevent undo/redo from adding to histor
 
 // Color palette for markers
 const markerColors = {
-    blue: { fill: 'rgba(100, 150, 255, 0.5)', stroke: '#2a5caa' },
-    red: { fill: 'rgba(255, 100, 100, 0.5)', stroke: '#aa2a2a' },
-    green: { fill: 'rgba(100, 200, 100, 0.5)', stroke: '#2a8a2a' },
-    yellow: { fill: 'rgba(255, 220, 100, 0.5)', stroke: '#aa9a2a' },
-    purple: { fill: 'rgba(180, 100, 255, 0.5)', stroke: '#6a2aaa' },
-    orange: { fill: 'rgba(255, 150, 80, 0.5)', stroke: '#aa6a2a' },
-    cyan: { fill: 'rgba(100, 220, 220, 0.5)', stroke: '#2a9aaa' },
-    pink: { fill: 'rgba(255, 150, 200, 0.5)', stroke: '#aa5a7a' }
+    blue:   { fill: '#2e5fa3', border: '#111e3a', stroke: '#4a88cc', ornament: '#c9a961' },
+    red:    { fill: '#8b1e1e', border: '#3a0808', stroke: '#cc3333', ornament: '#c9a961' },
+    green:  { fill: '#1e6b2e', border: '#092e14', stroke: '#2eaa44', ornament: '#c9a961' },
+    yellow: { fill: '#9a7c12', border: '#3d3008', stroke: '#c9a920', ornament: '#1a1410' },
+    purple: { fill: '#6b1e8b', border: '#280b38', stroke: '#9933cc', ornament: '#c9a961' },
+    orange: { fill: '#9a4a12', border: '#3d1c08', stroke: '#cc6622', ornament: '#c9a961' },
+    cyan:   { fill: '#1e7a8b', border: '#083038', stroke: '#2aaacc', ornament: '#c9a961' },
+    pink:   { fill: '#8b1e55', border: '#380822', stroke: '#cc3377', ornament: '#c9a961' }
 };
 
 let currentMarkerColor = 'blue';
@@ -60,11 +71,20 @@ const defs = svg.append("defs");
 // Create main group for pan/zoom
 const g = svg.append("g");
 
-// Map layers
+// Map layers (below fog)
 const mapGroup = g.append("g").attr("class", "map-layer");
-const markersGroup = g.append("g").attr("class", "markers-layer"); // Layer for player/enemy markers
-const drawingGroup = g.append("g").attr("class", "drawing-layer"); // Layer for freehand drawings
 const fogGroup = g.append("g").attr("class", "fog-layer");
+
+// Separate SVG that sits above the fog canvas (z-index > fog)
+const overlaySvg = mainContainer.append("svg")
+    .attr("width", window.innerWidth)
+    .attr("height", window.innerHeight)
+    .style("pointer-events", "none");
+const overlayG = overlaySvg.append("g");
+
+// Map layers (above fog)
+const markersGroup = overlayG.append("g").attr("class", "markers-layer");
+const drawingGroup = overlayG.append("g").attr("class", "drawing-layer");
 
 // Brush size indicator circle
 const brushIndicator = g.append("circle")
@@ -254,9 +274,8 @@ function setupMapLayers() {
         // Tablet: same corner layout with slightly more space
         mapPadding = { left: 15, right: 15, top: 75, bottom: 155 };
     } else {
-        // Desktop: left side has controls (home, reset, undo/redo ~130px), bottom has tools (~110px)
-        // Top and right are mostly clear, so minimize padding there
-        mapPadding = { left: 130, right: 40, top: 40, bottom: 110 };
+        // Desktop: left panel (~185px wide) holds sidebar controls; bottom has tool overlay (~110px)
+        mapPadding = { left: 185, right: 40, top: 40, bottom: 110 };
     }
 
     const viewWidth = window.innerWidth;
@@ -327,6 +346,15 @@ function setupMapLayers() {
         .attr("preserveAspectRatio", "xMidYMid meet");
 
     setupFogSystem();
+
+    // Place overlay SVG (markers + drawings) above fog canvas
+    overlaySvg.attr("width", imgWidth)
+        .attr("height", imgHeight)
+        .style("position", "absolute")
+        .style("left", "0")
+        .style("top", "0")
+        .style("z-index", "20");
+    mapWrapper.appendChild(overlaySvg.node());
 }
 
 
@@ -389,8 +417,11 @@ function setupFogSystem() {
     fogCanvas.width = Math.ceil(mapDimensions.width);
     fogCanvas.height = Math.ceil(mapDimensions.height);
 
-    // Position canvas inside the map wrapper at (0,0) - same coordinate system as SVG
-    fogCanvas.style.cssText = `position:absolute;left:0;top:0;width:${mapDimensions.width}px;height:${mapDimensions.height}px;pointer-events:none;z-index:10;`;
+    // Position canvas inside the map wrapper at (0,0) - same coordinate system as SVG.
+    // On Safari < 18 (no ctx.filter support), apply a CSS desaturate/darken filter as
+    // a visual fallback so fog is still clearly distinguishable from the revealed map.
+    const cssFallbackFilter = !supportsCanvasFilter ? 'saturate(0.5) brightness(0.75)' : 'none';
+    fogCanvas.style.cssText = `position:absolute;left:0;top:0;width:${mapDimensions.width}px;height:${mapDimensions.height}px;pointer-events:none;z-index:10;filter:${cssFallbackFilter};`;
     mapWrapper.appendChild(fogCanvas);
 
     // Pre-render the blurred fog texture (also creates maskCanvas at the same size)
@@ -420,13 +451,17 @@ function preRenderFogTexture() {
     const img = new Image();
     img.onload = function () {
         const ctx = fogTextureCanvas.getContext('2d');
-        // Stretch the image to fill the entire fog texture canvas so the
-        // visible map area sits deep inside the image. The blur kernel then
-        // samples from real pixels on all sides — no fade-to-transparent at edges.
-        // Use a blur amount relative to the map width so appearance is consistent across devices
+        // Blur amount relative to map width for consistent appearance across devices.
+        // ctx.filter is not supported in Safari < 18; we fall back to CSS filter on the
+        // visible fogCanvas (applied in setupFogSystem).
         const blurPx = Math.max(40, Math.round(mapDimensions.width * 0.08));
-        ctx.filter = `blur(${blurPx}px)`;
+        if (supportsCanvasFilter) {
+            ctx.filter = `blur(${blurPx}px)`;
+        }
         ctx.drawImage(img, 0, 0, fW, fH);
+        if (supportsCanvasFilter) {
+            ctx.filter = 'none';
+        }
 
         // Add paper texture overlay for aged parchment look
         addPaperTexture(ctx, fW, fH);
@@ -592,68 +627,91 @@ function addFog(x, y) {
     }
 }
 
-// Function to add a marker (player/enemy circle)
+// Function to add a marker (medieval wax-seal token)
 function addMarker(x, y, color = null, providedId = null) {
     if (!canEdit() && !suppressLocalEvents) return;
     let markerId;
     if (providedId) {
         markerId = providedId;
-        // try to keep markerIdCounter ahead of any numeric ids to avoid collisions
         const m = /marker-(\d+)/.exec(providedId);
         if (m) markerIdCounter = Math.max(markerIdCounter, parseInt(m[1], 10) + 1);
     } else {
         markerId = `marker-${markerIdCounter++}`;
     }
-    const markerRadius = Math.min(mapDimensions.width, mapDimensions.height) / 50; // Scale to map size (smaller)
+    const R = Math.min(mapDimensions.width, mapDimensions.height) / 50;
     const markerColor = color || currentMarkerColor;
     const colors = markerColors[markerColor];
+    const gold = '#c9a961';
+    const outerR = R * 1.28;
+    const innerR = R * 0.68;
+    const d = R * 0.3;
 
-    // Create marker circle
-    const markerCircle = markersGroup.append("circle")
+    // Marker group — positioned via SVG transform so all children move together
+    const markerGroup = markersGroup.append("g")
         .attr("id", markerId)
-        .attr("cx", x)
-        .attr("cy", y)
-        .attr("r", 0)
-        .attr("fill", colors.fill)
-        .attr("stroke", colors.stroke)
-        .attr("stroke-width", 3)
         .attr("class", "marker")
+        .attr("transform", `translate(${x}, ${y}) scale(0)`)
         .attr("data-color", markerColor)
         .style("cursor", "inherit")
         .style("pointer-events", "auto");
 
-    // Animate marker appearance
-    markerCircle.transition()
-        .duration(200)
-        .attr("r", markerRadius);
+    // Outer border ring (dark, for depth)
+    markerGroup.append("circle")
+        .attr("r", outerR)
+        .attr("fill", colors.border)
+        .attr("class", "marker-outer");
 
-    // Create text label for marker name
-    const markerText = markersGroup.append("text")
-        .attr("id", `${markerId}-text`)
-        .attr("x", x)
-        .attr("y", y + markerRadius + 15)
+    // Main body (heraldic color)
+    markerGroup.append("circle")
+        .attr("r", R)
+        .attr("fill", colors.fill)
+        .attr("class", "marker-body");
+
+    // Inner gold decorative ring
+    markerGroup.append("circle")
+        .attr("r", innerR)
+        .attr("fill", "none")
+        .attr("stroke", gold)
+        .attr("stroke-width", Math.max(1, R * 0.07))
+        .attr("stroke-dasharray", `${R * 0.2} ${R * 0.12}`)
+        .attr("class", "marker-ring")
+        .attr("pointer-events", "none");
+
+    // Center diamond ornament
+    markerGroup.append("path")
+        .attr("d", `M 0,${-d} L ${d},0 L 0,${d} L ${-d},0 Z`)
+        .attr("fill", colors.ornament)
+        .attr("class", "marker-ornament")
+        .attr("pointer-events", "none");
+
+    // Text label (inside group, so it moves with the token)
+    const markerText = markerGroup.append("text")
+        .attr("x", 0)
+        .attr("y", outerR + Math.max(12, R * 0.7))
         .attr("text-anchor", "middle")
         .attr("class", "marker-label")
-        .attr("fill", "#fff")
-        .attr("font-size", "12px")
-        .attr("font-family", "sans-serif")
-        .attr("font-weight", "bold")
-        .attr("stroke", "#000")
+        .attr("fill", "#f4e8d0")
+        .attr("font-size", `${Math.max(10, R * 0.6)}px`)
+        .attr("font-family", "Cinzel, serif")
+        .attr("font-weight", "600")
+        .attr("stroke", "#1a1410")
         .attr("stroke-width", "3")
         .attr("paint-order", "stroke")
-        .style("cursor", "inherit")
         .style("pointer-events", "none")
         .style("user-select", "none")
         .text("");
 
-    // Store marker data
-    const markerData = { id: markerId, x, y, color: markerColor, name: "", element: markerCircle, textElement: markerText };
+    // Animate appearance (scale from 0 to 1)
+    markerGroup.transition()
+        .duration(200)
+        .attr("transform", `translate(${x}, ${y})`);
+
+    const markerData = { id: markerId, x, y, color: markerColor, name: "", element: markerGroup, textElement: markerText };
     markers.push(markerData);
 
-    // Add drag behavior to marker (only active in marker mode)
+    // Drag behavior (active only in marker mode)
     const drag = d3.drag()
         .filter(function(event) {
-            // Only allow drag when in marker mode and when editing is allowed
             return activeTool === 'tool2' && canEdit();
         })
         .on("start", function(event) {
@@ -664,14 +722,8 @@ function addMarker(x, y, color = null, providedId = null) {
         })
         .on("drag", function(event) {
             if (activeTool === 'tool2') {
-                const [newX, newY] = d3.pointer(event, g.node());
-                d3.select(this)
-                    .attr("cx", newX)
-                    .attr("cy", newY);
-                // Update text position
-                markerData.textElement
-                    .attr("x", newX)
-                    .attr("y", newY + markerRadius + 15);
+                const [newX, newY] = d3.pointer(event, overlayG.node());
+                d3.select(this).attr("transform", `translate(${newX}, ${newY})`);
                 markerData.x = newX;
                 markerData.y = newY;
             }
@@ -679,91 +731,92 @@ function addMarker(x, y, color = null, providedId = null) {
         .on("end", function(event) {
             if (activeTool === 'tool2') {
                 d3.select(this).style("cursor", "grab");
-                // Save state after dragging
                 saveToLocalStorage();
-                // Delay clearing isDragging flag to prevent click event
-                setTimeout(() => {
-                    markerData.isDragging = false;
-                }, 50);
+                setTimeout(() => { markerData.isDragging = false; }, 50);
             }
         });
 
-    markerCircle.call(drag);
+    markerGroup.call(drag);
 
-    // Add double-click event to edit marker name and color
-    markerCircle.on("dblclick", function(event) {
+    // Double-click to edit name and color
+    markerGroup.on("dblclick", function(event) {
         if (activeTool === 'tool2' && canEdit()) {
             event.stopPropagation();
 
-            // Create a custom dialog for editing marker
-            const dialogHTML = `
-                <div style="font-family: sans-serif;">
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #aaa; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Name:</label>
-                        <input type="text" id="marker-name-input" value="${markerData.name || ""}"
-                               style="width: 100%; padding: 10px; border: 1px solid rgba(255, 255, 255, 0.2);
-                                      border-radius: 6px; font-size: 14px; background: rgba(0, 0, 0, 0.3);
-                                      color: #fff; outline: none; transition: all 0.2s;"
-                               onfocus="this.style.borderColor='rgba(100, 150, 255, 0.5)'; this.style.background='rgba(0, 0, 0, 0.5)';"
-                               onblur="this.style.borderColor='rgba(255, 255, 255, 0.2)'; this.style.background='rgba(0, 0, 0, 0.3)';">
-                    </div>
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #aaa; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Color:</label>
-                        <div id="color-options" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                            ${Object.keys(markerColors).map(colorKey => `
-                                <button class="color-option" data-color="${colorKey}"
-                                        style="width: 40px; height: 40px; border-radius: 50%;
-                                               border: 3px solid ${colorKey === markerData.color ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.2)'};
-                                               background-color: ${markerColors[colorKey].fill};
-                                               cursor: pointer; transition: all 0.2s;
-                                               box-shadow: ${colorKey === markerData.color ? '0 0 12px rgba(255, 255, 255, 0.4)' : '0 2px 4px rgba(0, 0, 0, 0.5)'};"
-                                        onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 4px 8px rgba(0, 0, 0, 0.6)';"
-                                        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='${colorKey === markerData.color ? '0 0 12px rgba(255, 255, 255, 0.4)' : '0 2px 4px rgba(0, 0, 0, 0.5)'}';"
-                                        onclick="document.querySelectorAll('.color-option').forEach(b => { b.style.border='3px solid rgba(255, 255, 255, 0.2)'; b.style.boxShadow='0 2px 4px rgba(0, 0, 0, 0.5)'; }); this.style.border='3px solid rgba(255, 255, 255, 0.9)'; this.style.boxShadow='0 0 12px rgba(255, 255, 255, 0.4)';">
-                                </button>
-                            `).join('')}
-                        </div>
-                    </div>
-                </div>
-            `;
+            let selectedDialogColor = markerData.color;
 
-            // Create modal overlay
             const overlay = document.createElement('div');
-            overlay.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.85); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);';
 
             const modal = document.createElement('div');
-            modal.style.cssText = 'background: linear-gradient(145deg, #2a2a2a, #1f1f1f); padding: 25px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05); max-width: 400px; width: 90%; border: 1px solid rgba(255, 255, 255, 0.1);';
-            modal.innerHTML = dialogHTML;
+            modal.style.cssText = 'background:linear-gradient(to right,#c9b79c 0%,#e8d7b8 5%,#f4e8d0 50%,#e8d7b8 95%,#c9b79c 100%);padding:32px;border-radius:8px;border:3px solid #3d2f1f;box-shadow:0 12px 40px rgba(0,0,0,0.7),inset 0 0 40px rgba(139,30,30,0.06);max-width:360px;width:90%;box-sizing:border-box;';
+
+            const title = document.createElement('h3');
+            title.textContent = 'Edit Token';
+            title.style.cssText = 'font-family:"Cinzel",serif;font-weight:700;color:#1a1410;margin:0 0 24px;text-align:center;font-size:15px;letter-spacing:2px;text-transform:uppercase;border-bottom:2px solid #3d2f1f;padding-bottom:14px;';
+            modal.appendChild(title);
+
+            const nameLabel = document.createElement('label');
+            nameLabel.textContent = 'Name';
+            nameLabel.style.cssText = 'display:block;margin-bottom:8px;font-weight:600;color:#1a1410;font-size:11px;font-family:"Cinzel",serif;text-transform:uppercase;letter-spacing:1px;';
+            modal.appendChild(nameLabel);
+
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.id = 'marker-name-input';
+            nameInput.value = markerData.name || '';
+            nameInput.style.cssText = 'width:100%;padding:10px 14px;border:2px solid #3d2f1f;border-radius:4px;font-size:14px;font-family:"IM Fell English",serif;background:rgba(244,232,208,0.8);color:#1a1410;outline:none;box-shadow:inset 0 2px 4px rgba(0,0,0,0.1);margin-bottom:20px;box-sizing:border-box;';
+            nameInput.onfocus = () => { nameInput.style.borderColor = '#8b1e1e'; nameInput.style.background = '#f4e8d0'; };
+            nameInput.onblur  = () => { nameInput.style.borderColor = '#3d2f1f'; nameInput.style.background = 'rgba(244,232,208,0.8)'; };
+            modal.appendChild(nameInput);
+
+            const colorLabel = document.createElement('label');
+            colorLabel.textContent = 'Seal Color';
+            colorLabel.style.cssText = 'display:block;margin-bottom:10px;font-weight:600;color:#1a1410;font-size:11px;font-family:"Cinzel",serif;text-transform:uppercase;letter-spacing:1px;';
+            modal.appendChild(colorLabel);
+
+            const colorGrid = document.createElement('div');
+            colorGrid.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;';
+            Object.keys(markerColors).forEach(colorKey => {
+                const swatch = document.createElement('button');
+                swatch.dataset.color = colorKey;
+                swatch.className = 'color-option';
+                const sel = colorKey === selectedDialogColor;
+                swatch.style.cssText = `width:34px;height:34px;border-radius:50%;border:3px solid ${sel ? gold : '#3d2f1f'};background:${markerColors[colorKey].fill};cursor:pointer;box-shadow:${sel ? `0 0 10px rgba(201,169,97,0.6),0 2px 4px rgba(0,0,0,0.5)` : '0 2px 4px rgba(0,0,0,0.5)'};transition:all 0.15s;`;
+                swatch.onclick = () => {
+                    selectedDialogColor = colorKey;
+                    colorGrid.querySelectorAll('.color-option').forEach(b => {
+                        const active = b.dataset.color === selectedDialogColor;
+                        b.style.border = `3px solid ${active ? gold : '#3d2f1f'}`;
+                        b.style.boxShadow = active ? '0 0 10px rgba(201,169,97,0.6),0 2px 4px rgba(0,0,0,0.5)' : '0 2px 4px rgba(0,0,0,0.5)';
+                    });
+                };
+                colorGrid.appendChild(swatch);
+            });
+            modal.appendChild(colorGrid);
 
             const buttons = document.createElement('div');
-            buttons.style.cssText = 'display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;';
+            buttons.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;';
 
             const cancelBtn = document.createElement('button');
             cancelBtn.textContent = 'Cancel';
-            cancelBtn.style.cssText = 'padding: 10px 18px; border: 1px solid rgba(255, 255, 255, 0.2); background: linear-gradient(145deg, #333, #282828); color: #aaa; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s; font-weight: bold;';
-            cancelBtn.onmouseover = () => { cancelBtn.style.background = 'linear-gradient(145deg, #3a3a3a, #2f2f2f)'; cancelBtn.style.color = '#ddd'; };
-            cancelBtn.onmouseout = () => { cancelBtn.style.background = 'linear-gradient(145deg, #333, #282828)'; cancelBtn.style.color = '#aaa'; };
+            cancelBtn.style.cssText = 'padding:10px 20px;border:2px solid #2a1f15;background:linear-gradient(145deg,#4a3829,#3d2f1f);color:#f4e8d0;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;font-family:"Cinzel",serif;text-transform:uppercase;letter-spacing:0.5px;box-shadow:0 3px 6px rgba(0,0,0,0.4);';
             cancelBtn.onclick = () => document.body.removeChild(overlay);
 
             const saveBtn = document.createElement('button');
             saveBtn.textContent = 'Save';
-            saveBtn.style.cssText = 'padding: 10px 18px; border: none; background: linear-gradient(145deg, #3a5a7a, #2a4560); color: white; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.2s; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);';
-            saveBtn.onmouseover = () => { saveBtn.style.background = 'linear-gradient(145deg, #4a6a8a, #3a5570)'; saveBtn.style.boxShadow = '0 3px 8px rgba(0, 0, 0, 0.6)'; };
-            saveBtn.onmouseout = () => { saveBtn.style.background = 'linear-gradient(145deg, #3a5a7a, #2a4560)'; saveBtn.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.5)'; };
+            saveBtn.style.cssText = 'padding:10px 20px;border:2px solid #5a1416;background:linear-gradient(145deg,#9b2226,#7a1b1e);color:#f4e8d0;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;font-family:"Cinzel",serif;text-transform:uppercase;letter-spacing:0.5px;box-shadow:0 3px 6px rgba(0,0,0,0.4);';
             saveBtn.onclick = () => {
-                const newName = modal.querySelector('#marker-name-input').value;
-                const selectedColor = modal.querySelector('.color-option[style*="border: 3px solid rgb(0, 0, 0)"]')?.dataset.color || markerData.color;
+                markerData.name = nameInput.value;
+                markerData.textElement.text(markerData.name);
 
-                markerData.name = newName;
-                markerData.textElement.text(newName);
-
-                if (selectedColor !== markerData.color) {
-                    markerData.color = selectedColor;
-                    const colors = markerColors[selectedColor];
-                    markerData.element
-                        .attr("fill", colors.fill)
-                        .attr("stroke", colors.stroke)
-                        .attr("data-color", selectedColor);
+                if (selectedDialogColor !== markerData.color) {
+                    markerData.color = selectedDialogColor;
+                    const newColors = markerColors[selectedDialogColor];
+                    markerData.element.attr("data-color", selectedDialogColor);
+                    markerData.element.select('.marker-outer').attr("fill", newColors.border);
+                    markerData.element.select('.marker-body').attr("fill", newColors.fill);
+                    markerData.element.select('.marker-ornament').attr("fill", newColors.ornament);
                 }
 
                 saveToLocalStorage();
@@ -776,25 +829,14 @@ function addMarker(x, y, color = null, providedId = null) {
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
 
-            // Focus on name input
-            setTimeout(() => modal.querySelector('#marker-name-input').focus(), 100);
-
-            // Allow Enter key to save
-            modal.querySelector('#marker-name-input').addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') saveBtn.click();
-            });
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) document.body.removeChild(overlay); });
+            setTimeout(() => nameInput.focus(), 100);
+            nameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') saveBtn.click(); });
         }
     });
 
-    // Save state after adding marker (but only if not loading from storage)
     if (!markerData.isLoading) {
-        // Add to history
-        addToHistory({
-            type: 'marker',
-            action: 'add',
-            data: { id: markerId, x, y, color: markerColor, name: "" }
-        });
-
+        addToHistory({ type: 'marker', action: 'add', data: { id: markerId, x, y, color: markerColor, name: "" } });
         saveToLocalStorage();
         if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
             const p = normalizePoint(x, y);
@@ -847,12 +889,9 @@ function removeMarker(x, y) {
         // Animate marker removal
         marker.element.transition()
             .duration(200)
-            .attr("r", 0)
+            .attr("transform", `translate(${marker.x}, ${marker.y}) scale(0)`)
             .style("opacity", 0)
             .remove();
-
-        // Remove text label
-        marker.textElement.remove();
 
         // Remove from markers array
         markers = markers.filter(m => m.id !== marker.id);
@@ -883,12 +922,9 @@ function removeMarkerById(id) {
     // Animate marker removal
     marker.element.transition()
         .duration(200)
-        .attr("r", 0)
+        .attr("transform", `translate(${marker.x}, ${marker.y}) scale(0)`)
         .style("opacity", 0)
         .remove();
-
-    // Remove text label
-    marker.textElement.remove();
 
     // Remove from markers array
     markers = markers.filter(m => m.id !== marker.id);
@@ -1022,6 +1058,7 @@ const zoom = d3.zoom()
     })
     .on("zoom", (event) => {
         g.attr("transform", event.transform);
+        overlayG.attr("transform", event.transform);
         currentZoomTransform = event.transform;
         renderFogCanvas();
     });
@@ -1086,7 +1123,7 @@ svg.on("mousedown touchstart", function(event) {
         // Middle mouse button - for panning
         event.preventDefault();
         isMiddleMouseDown = true;
-        container.node().classList.add('panning');
+        mainContainer.node().classList.add('panning');
     } else {
         // Left or right mouse button
         // Block editing interactions for viewers (allow middle mouse panning above)
@@ -1112,7 +1149,7 @@ svg.on("mouseup touchend", function(event) {
     if (event.button === 1) {
         // Middle mouse button released
         isMiddleMouseDown = false;
-        container.node().classList.remove('panning');
+        mainContainer.node().classList.remove('panning');
     }
 
     // End drawing if in draw mode
@@ -1333,18 +1370,28 @@ function resetMap() {
     }
 }
 
-// Position control above a button
+// Position control next to a button.
+// Left-panel buttons on desktop: opens to the right.
+// Bottom-toolbar buttons or mobile: opens above, centered.
 function positionControlAboveButton(control, button) {
     const buttonRect = button.getBoundingClientRect();
-    const controlRect = control.getBoundingClientRect();
+    const inLeftPanel = !!button.closest('#left-panel');
 
-    // Position above the button, centered horizontally
-    const left = buttonRect.left + (buttonRect.width / 2);
-    const bottom = window.innerHeight - buttonRect.top + 10; // 10px gap above button
-
-    control.style.left = `${left}px`;
-    control.style.bottom = `${bottom}px`;
-    control.style.transform = 'translateX(-50%)';
+    if (window.innerWidth > 768 && inLeftPanel) {
+        const left = buttonRect.right + 12;
+        const top = buttonRect.top + buttonRect.height / 2;
+        control.style.left = `${left}px`;
+        control.style.top = `${top}px`;
+        control.style.bottom = '';
+        control.style.transform = 'translateY(-50%)';
+    } else {
+        const left = buttonRect.left + buttonRect.width / 2;
+        const bottom = window.innerHeight - buttonRect.top + 10;
+        control.style.left = `${left}px`;
+        control.style.bottom = `${bottom}px`;
+        control.style.top = '';
+        control.style.transform = 'translateX(-50%)';
+    }
 }
 
 revealToolBtn.addEventListener('click', (e) => {

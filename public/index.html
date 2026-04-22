@@ -27,6 +27,7 @@
             justify-content: center;
             font-family: var(--font-body);
             color: var(--ink-black);
+            overscroll-behavior: none;
         }
 
         .lobby-container {
@@ -127,6 +128,8 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
             transition: all 0.2s ease;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .tab-button.active {
@@ -214,6 +217,8 @@
             text-transform: uppercase;
             letter-spacing: 1px;
             font-family: var(--font-heading);
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .btn-primary {
