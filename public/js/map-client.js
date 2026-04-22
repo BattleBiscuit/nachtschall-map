@@ -53,6 +53,9 @@ const svg = container.append("svg")
     .attr("width", width)
     .attr("height", height);
 
+// Create defs for clip-path (torn paper edges)
+const defs = svg.append("defs");
+
 // Create main group for pan/zoom
 const g = svg.append("g");
 
@@ -198,12 +201,34 @@ function canEdit() {
 function setupMapLayers() {
     if (!mapImageDataUrl) return;
 
+    // Map padding: leave space for UI elements (120px left/right, 100px top/bottom)
+    const mapPadding = { left: 120, right: 120, top: 100, bottom: 100 };
+
     const viewWidth = window.innerWidth;
     const viewHeight = window.innerHeight;
-    const imgWidth = viewWidth;
-    const imgHeight = imgWidth / mapAspectRatio;
-    const imgX = 0;
-    const imgY = viewHeight / 2 - imgHeight / 2;
+
+    // Calculate available space for map
+    const availableWidth = viewWidth - mapPadding.left - mapPadding.right;
+    const availableHeight = viewHeight - mapPadding.top - mapPadding.bottom;
+
+    // Size map to fit available space while maintaining aspect ratio
+    let imgWidth, imgHeight;
+    const targetAspectRatio = mapAspectRatio;
+    const availableAspectRatio = availableWidth / availableHeight;
+
+    if (availableAspectRatio > targetAspectRatio) {
+        // Available space is wider - fit to height
+        imgHeight = availableHeight;
+        imgWidth = imgHeight * targetAspectRatio;
+    } else {
+        // Available space is taller - fit to width
+        imgWidth = availableWidth;
+        imgHeight = imgWidth / targetAspectRatio;
+    }
+
+    // Center the map in available space
+    const imgX = mapPadding.left + (availableWidth - imgWidth) / 2;
+    const imgY = mapPadding.top + (availableHeight - imgHeight) / 2;
 
     mapDimensions = { x: imgX, y: imgY, width: imgWidth, height: imgHeight };
 
@@ -218,6 +243,7 @@ function setupMapLayers() {
 
     setupFogSystem();
 }
+
 
 
 // ── Fog canvas system ────────────────────────────────────────────────────────
@@ -235,14 +261,18 @@ let fogTextureDims = null;   // { x, y, w, h } in map-space
 let currentZoomTransform = d3.zoomIdentity;
 
 function setupFogSystem() {
-    // (Re-)create the visible fog canvas
+    // (Re-)create the visible fog canvas - sized and positioned to match map bounds
     const existing = document.getElementById('fog-canvas');
     if (existing) existing.remove();
     fogCanvas = document.createElement('canvas');
     fogCanvas.id = 'fog-canvas';
-    fogCanvas.width = window.innerWidth;
-    fogCanvas.height = window.innerHeight;
-    fogCanvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:10;';
+
+    // Size canvas to match map dimensions (not full viewport)
+    fogCanvas.width = Math.ceil(mapDimensions.width);
+    fogCanvas.height = Math.ceil(mapDimensions.height);
+
+    // Position canvas exactly over the map image
+    fogCanvas.style.cssText = `position:fixed;left:${mapDimensions.x}px;top:${mapDimensions.y}px;width:${mapDimensions.width}px;height:${mapDimensions.height}px;pointer-events:none;z-index:10;`;
     document.getElementById('map-container').appendChild(fogCanvas);
 
     // Pre-render the blurred fog texture (also creates maskCanvas at the same size)
@@ -292,7 +322,11 @@ function renderFogCanvas() {
 
     ctx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
     ctx.save();
-    ctx.translate(t.x, t.y);
+
+    // Adjust transform coordinates since canvas is now positioned at map origin
+    // The canvas (0,0) is already at mapDimensions.x, mapDimensions.y in screen space
+    // So we need to offset the transform by the map position
+    ctx.translate(t.x - mapDimensions.x, t.y - mapDimensions.y);
     ctx.scale(t.k, t.k);
 
     // Draw pre-blurred fog texture
