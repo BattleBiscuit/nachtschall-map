@@ -6,21 +6,14 @@
     <title>Nachtschall Map - Tavern</title>
     <link rel="stylesheet" href="/css/medieval-theme.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            /* Aged parchment/wood tavern wall background */
             background-color: var(--leather-darker);
             background-image:
-                linear-gradient(90deg, rgba(58, 47, 31, 0.3) 1px, transparent 1px),
-                linear-gradient(rgba(58, 47, 31, 0.3) 1px, transparent 1px),
-                radial-gradient(circle at 30% 40%, rgba(139, 30, 30, 0.15) 0%, transparent 40%),
-                radial-gradient(circle at 70% 60%, rgba(58, 47, 31, 0.2) 0%, transparent 50%);
-            background-size: 100px 100px, 100px 100px, 300px 300px, 250px 250px;
+                radial-gradient(circle at 22% 30%, rgba(139,30,30,0.12) 0%, transparent 42%),
+                radial-gradient(circle at 78% 70%, rgba(58,47,31,0.18) 0%, transparent 42%),
+                linear-gradient(160deg, #2a1f15 0%, #1a1410 50%, #2a1f15 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -30,15 +23,25 @@
             overscroll-behavior: none;
         }
 
+        /* ── Wrapper: drop-shadow traces the torn clip-path outline ─────────── */
+        .lobby-wrapper {
+            max-width: 500px;
+            width: 90%;
+            filter:
+                drop-shadow(0 14px 36px rgba(0,0,0,0.75))
+                drop-shadow(0 3px 6px rgba(0,0,0,0.5));
+        }
+
+        /* ── Parchment body — torn paper on all four sides ───────────────────── */
         .lobby-container {
-            /* Scroll/parchment card appearance */
-            background: linear-gradient(to right,
-                var(--parchment-dark) 0%,
-                var(--parchment) 5%,
-                var(--parchment-light) 50%,
-                var(--parchment) 95%,
-                var(--parchment-dark) 100%
-            );
+            background:
+                linear-gradient(to right,
+                    var(--parchment-dark) 0%,
+                    var(--parchment) 5%,
+                    var(--parchment-light) 50%,
+                    var(--parchment) 95%,
+                    var(--parchment-dark) 100%
+                );
             background-image:
                 linear-gradient(to right,
                     var(--parchment-dark) 0%,
@@ -47,114 +50,252 @@
                     var(--parchment) 95%,
                     var(--parchment-dark) 100%
                 ),
-                linear-gradient(90deg, rgba(0,0,0,0.02) 1px, transparent 1px),
-                linear-gradient(rgba(0,0,0,0.02) 1px, transparent 1px),
-                radial-gradient(circle at 15% 25%, rgba(139, 30, 30, 0.04) 0%, transparent 50%),
-                radial-gradient(circle at 85% 75%, rgba(58, 47, 31, 0.06) 0%, transparent 50%);
-            background-size: 100% 100%, 50px 50px, 50px 50px, 200px 200px, 180px 180px;
-            border: 3px solid var(--leather-dark);
-            border-radius: 12px;
-            padding: 48px;
-            max-width: 480px;
-            width: 90%;
-            box-shadow:
-                0 12px 40px rgba(0, 0, 0, 0.5),
-                inset 0 0 60px rgba(139, 30, 30, 0.08),
-                inset 0 0 40px rgba(58, 47, 31, 0.1);
+                radial-gradient(circle at 10% 20%, rgba(139,30,30,0.05) 0%, transparent 35%),
+                radial-gradient(circle at 90% 80%, rgba(58,47,31,0.07) 0%, transparent 35%);
+            background-size: 100% 100%, 100% 100%, 100% 100%;
+
+            padding: 56px 56px 52px;
             position: relative;
+
+            /* Torn paper on all four sides */
+            clip-path: polygon(
+                /* top edge — left to right */
+                0%    3.2%, 3%    0.6%,  7%    3%,   11%   0.5%,
+                15%   3.4%, 20%   0.8%,  25%   3%,   30%   0.6%,
+                35%   3.2%, 40%   0.8%,  45%   3%,   50%   0.6%,
+                55%   3.2%, 60%   0.8%,  65%   3%,   70%   0.6%,
+                75%   3.2%, 80%   0.8%,  85%   3%,   90%   0.6%,
+                95%   3.2%, 98%   0.8%,  100%  2.5%,
+                /* right edge — top to bottom */
+                98.5% 7%,  100%  14%,  98.5% 21%,  100%  28%,
+                98.5% 35%, 100%  42%,  98.5% 49%,  100%  56%,
+                98.5% 63%, 100%  70%,  98.5% 77%,  100%  84%,
+                98.5% 91%, 100%  98%,
+                /* bottom edge — right to left */
+                97%   100%, 92%   97.2%, 87%   100%, 82%   97.2%,
+                77%   100%, 72%   97.2%, 67%   100%, 62%   97.2%,
+                57%   100%, 52%   97.2%, 47%   100%, 42%   97.2%,
+                37%   100%, 32%   97.2%, 27%   100%, 22%   97.2%,
+                17%   100%, 12%   97.2%, 7%    100%, 3%    97.2%,
+                0%    98.5%,
+                /* left edge — bottom to top */
+                1.5%  93%,  0%    86%,   1.5%  79%,  0%    72%,
+                1.5%  65%,  0%    58%,   1.5%  51%,  0%    44%,
+                1.5%  37%,  0%    30%,   1.5%  23%,  0%    16%,
+                1.5%  9%
+            );
         }
 
-        /* Worn paper texture overlay */
+        /* Aged stain overlays */
         .lobby-container::before {
             content: '';
             position: absolute;
             inset: 0;
-            border-radius: 9px;
             background:
-                radial-gradient(circle at 10% 20%, rgba(139, 30, 30, 0.1) 0%, transparent 20%),
-                radial-gradient(circle at 90% 80%, rgba(58, 47, 31, 0.15) 0%, transparent 25%);
+                radial-gradient(circle at 8% 15%, rgba(139,30,30,0.07) 0%, transparent 20%),
+                radial-gradient(circle at 92% 85%, rgba(58,47,31,0.1) 0%, transparent 22%);
             pointer-events: none;
         }
 
-        h1 {
-            font-family: var(--font-display);
-            font-size: 36px;
-            font-weight: 700;
-            margin-bottom: 12px;
+        /* ── Title ───────────────────────────────────────────────────────────── */
+        .title-area {
             text-align: center;
-            color: var(--leather-darker);
-            text-shadow:
-                2px 2px 0 rgba(201, 169, 97, 0.3),
-                1px 1px 2px rgba(0, 0, 0, 0.2);
-            letter-spacing: 2px;
+            margin-bottom: 40px;
             position: relative;
             z-index: 1;
+        }
+
+        .ornament-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .ornament-line {
+            flex: 1;
+            height: 2px;
+            background: linear-gradient(to right,
+                transparent, var(--gold-accent) 30%, var(--gold-accent) 70%, transparent);
+        }
+
+        .ornament-diamond { color: var(--gold-accent); font-size: 13px; flex-shrink: 0; }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: 34px;
+            font-weight: 700;
+            color: var(--leather-darker);
+            text-shadow:
+                1px 1px 0 rgba(201,169,97,0.35),
+                2px 2px 3px rgba(0,0,0,0.2);
+            letter-spacing: 3px;
+            margin-bottom: 6px;
         }
 
         .subtitle {
-            text-align: center;
             color: var(--ink-faded);
-            font-size: 14px;
-            font-family: var(--font-body);
-            margin-bottom: 40px;
+            font-size: 13px;
             font-style: italic;
+        }
+
+        /* ── Error message ───────────────────────────────────────────────────── */
+        #error-message {
+            display: none;
+            padding: 10px 14px;
+            background: rgba(139,30,30,0.1);
+            border-left: 4px solid var(--blood-red);
+            color: var(--blood-red);
+            font-size: 13px;
+            font-style: italic;
+            margin-bottom: 20px;
             position: relative;
             z-index: 1;
         }
 
-        .tabs {
+        /* ── Wax seal buttons — exact map tool-button style ─────────────────── */
+        .seal-row {
             display: flex;
-            gap: 8px;
-            margin-bottom: 32px;
-            background: rgba(58, 47, 31, 0.15);
-            padding: 6px;
-            border-radius: 6px;
-            border: 2px solid var(--parchment-dark);
+            justify-content: center;
+            gap: 28px;
+            margin-bottom: 36px;
             position: relative;
             z-index: 1;
         }
 
-        .tab-button {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid transparent;
-            background: transparent;
-            color: var(--ink-faded);
+        .seal-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Shared wax seal shape */
+        .wax-seal {
+            width: 64px;
+            height: 64px;
+            border: none;
             cursor: pointer;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 600;
-            font-family: var(--font-heading);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
             transition: all 0.2s ease;
+            border-radius: 43% 57% 48% 52% / 56% 42% 58% 44%;
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
         }
 
-        .tab-button.active {
-            background: linear-gradient(145deg, #4a3829, #3d2f1f);
-            border: 2px solid var(--leather-darker);
-            color: var(--parchment-light);
+        /* Embossed inner ring */
+        .wax-seal::before {
+            content: '';
+            position: absolute;
+            inset: 12px;
+            border: 2px solid rgba(0,0,0,0.3);
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.4);
+            border-radius: 41% 59% 54% 46% / 47% 53% 47% 53%;
+        }
+
+        /* Tab seals — leather when inactive */
+        .tab-button {
+            background: radial-gradient(circle at 35% 35%,
+                #5a4839, #3d2f1f 60%, #2a1f15 100%);
             box-shadow:
-                0 4px 8px rgba(0, 0, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+                0 6px 12px rgba(0,0,0,0.6),
+                inset 0 -3px 6px rgba(0,0,0,0.4),
+                inset 0 2px 4px rgba(80,60,40,0.25);
         }
 
         .tab-button:hover:not(.active) {
-            background: rgba(58, 47, 31, 0.1);
-            color: var(--ink-black);
-            border-color: var(--parchment-dark);
+            transform: translateY(-1px) scale(1.05);
+            box-shadow:
+                0 8px 16px rgba(0,0,0,0.65),
+                inset 0 -3px 6px rgba(0,0,0,0.3);
         }
 
-        .tab-content {
-            display: none;
+        /* Active tab — gold, pressed */
+        .tab-button.active {
+            background: radial-gradient(circle at 35% 35%,
+                #c9a961, #8b6914 60%, #6b5214 100%);
+            box-shadow:
+                0 4px 8px rgba(0,0,0,0.6),
+                inset 0 2px 6px rgba(0,0,0,0.4),
+                inset 0 -2px 4px rgba(201,169,97,0.3),
+                0 0 16px rgba(201,169,97,0.3);
+            transform: translateY(2px);
         }
 
-        .tab-content.active {
-            display: block;
+        .tab-button:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.6), inset 0 4px 8px rgba(0,0,0,0.6);
         }
 
+        /* Action seals — blood-red */
+        .wax-seal-action {
+            width: 72px;
+            height: 72px;
+            background: radial-gradient(circle at 35% 35%,
+                #9b2226, #7a1b1e 60%, #5a1416 100%);
+            box-shadow:
+                0 6px 12px rgba(0,0,0,0.6),
+                inset 0 -3px 6px rgba(0,0,0,0.4),
+                inset 0 2px 4px rgba(139,30,30,0.3);
+        }
+
+        .wax-seal-action:hover {
+            transform: translateY(-1px) scale(1.05);
+            box-shadow:
+                0 8px 16px rgba(0,0,0,0.7),
+                inset 0 -3px 6px rgba(0,0,0,0.3),
+                inset 0 2px 6px rgba(139,30,30,0.4);
+        }
+
+        .wax-seal-action:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.6), inset 0 4px 8px rgba(0,0,0,0.6);
+        }
+
+        /* SVG icons inside seals — stamped impression style */
+        .wax-seal svg, .wax-seal-action svg {
+            width: 26px;
+            height: 26px;
+            fill: none;
+            stroke: rgba(0,0,0,0.4);
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+            opacity: 0.6;
+            z-index: 1;
+        }
+
+        .tab-button.active svg { opacity: 0.55; }
+
+        /* Parchment label strip — identical to map's .tool-label */
+        .seal-label {
+            background: linear-gradient(to bottom, #f4e8d0, #e8d7b8);
+            color: #3d2f1f;
+            font-size: 11px;
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-style: italic;
+            letter-spacing: 0.5px;
+            padding: 4px 10px;
+            border: 1px solid #c9b79c;
+            border-radius: 2px;
+            box-shadow:
+                0 2px 4px rgba(0,0,0,0.3),
+                inset 0 1px 0 rgba(255,255,255,0.5);
+            text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        /* ── Tab content ─────────────────────────────────────────────────────── */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* ── Form fields ─────────────────────────────────────────────────────── */
         .form-group {
             margin-bottom: 24px;
             position: relative;
@@ -166,278 +307,260 @@
             margin-bottom: 8px;
             font-weight: 600;
             color: var(--ink-black);
-            font-size: 12px;
+            font-size: 11px;
             font-family: var(--font-heading);
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
         }
 
-        input[type="text"],
-        select {
+        input[type="text"], select {
             width: 100%;
             padding: 12px 16px;
             border: 2px solid var(--leather-dark);
-            border-radius: 4px;
+            border-radius: 3px;
             font-size: 15px;
             font-family: var(--font-body);
-            background: rgba(244, 232, 208, 0.6);
+            background: rgba(244,232,208,0.55);
             color: var(--ink-black);
             outline: none;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
             transition: all 0.2s ease;
         }
 
-        input[type="text"]:focus,
-        select:focus {
+        input[type="text"]:focus, select:focus {
             border-color: var(--blood-red);
-            background: rgba(244, 232, 208, 0.9);
+            background: rgba(244,232,208,0.9);
             box-shadow:
-                inset 0 2px 4px rgba(0, 0, 0, 0.15),
-                0 0 0 3px rgba(139, 30, 30, 0.1);
+                inset 0 2px 5px rgba(0,0,0,0.12),
+                0 0 0 3px rgba(139,30,30,0.1);
         }
 
         input[type="text"]::placeholder {
             color: var(--ink-faded);
-            opacity: 0.7;
+            opacity: 0.6;
+            font-style: italic;
         }
 
-        select {
-            cursor: pointer;
-        }
+        select { cursor: pointer; }
 
-        .btn {
-            width: 100%;
-            padding: 16px;
-            border: none;
-            border-radius: 4px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-family: var(--font-heading);
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .btn-primary {
-            background: linear-gradient(145deg, #9b2226, #7a1b1e);
-            border: 2px solid #5a1416;
-            color: var(--parchment-light);
-            box-shadow:
-                0 4px 8px rgba(0, 0, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1),
-                inset 0 -1px 0 rgba(0, 0, 0, 0.3);
-        }
-
-        .btn-primary:hover {
-            background: linear-gradient(145deg, #ab3236, #8a2b2e);
-            transform: translateY(-2px);
-            box-shadow:
-                0 6px 12px rgba(0, 0, 0, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.15);
-        }
-
-        .btn-primary:active {
-            transform: translateY(0);
-            box-shadow:
-                0 2px 4px rgba(0, 0, 0, 0.4),
-                inset 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        .btn-secondary {
-            background: linear-gradient(145deg, #4a3829, #3d2f1f);
-            border: 2px solid var(--leather-darker);
-            color: var(--parchment-light);
-            box-shadow:
-                0 4px 8px rgba(0, 0, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1),
-                inset 0 -1px 0 rgba(0, 0, 0, 0.3);
-        }
-
-        .btn-secondary:hover {
-            background: linear-gradient(145deg, #5a4839, #4d3f2f);
-            transform: translateY(-2px);
-            box-shadow:
-                0 6px 12px rgba(0, 0, 0, 0.5),
-                inset 0 1px 0 rgba(255, 255, 255, 0.15);
-        }
-
-        .btn-secondary:active {
-            transform: translateY(0);
-            box-shadow:
-                0 2px 4px rgba(0, 0, 0, 0.4),
-                inset 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-
-        .map-preview {
-            max-width: 100%;
-            max-height: 180px;
-            border-radius: 6px;
-            border: 3px solid var(--leather-dark);
-            display: none;
-            object-fit: cover;
-            margin-top: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        }
-
+        /* ── Checkbox ────────────────────────────────────────────────────────── */
         .checkbox-group {
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-top: 12px;
-            color: var(--ink-black);
+            margin-top: 10px;
+            color: var(--ink-faded);
             font-size: 13px;
-            font-family: var(--font-body);
+            font-style: italic;
             position: relative;
             z-index: 1;
         }
 
         .checkbox-group input[type="checkbox"] {
             cursor: pointer;
-            width: 16px;
-            height: 16px;
+            width: 15px;
+            height: 15px;
+            accent-color: var(--blood-red);
         }
 
+        /* ── Map preview ─────────────────────────────────────────────────────── */
+        .map-preview {
+            max-width: 100%;
+            max-height: 160px;
+            display: none;
+            object-fit: cover;
+            margin-top: 14px;
+            border: 3px solid var(--leather-dark);
+            border-radius: 2px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+        }
+
+        /* ── OR divider ──────────────────────────────────────────────────────── */
         .divider {
-            text-align: center;
+            display: flex;
+            align-items: center;
+            gap: 12px;
             margin: 24px 0;
             position: relative;
-            color: var(--ink-faded);
-            font-size: 12px;
-            font-family: var(--font-heading);
-            text-transform: uppercase;
-            letter-spacing: 1px;
             z-index: 1;
         }
 
-        .divider::before,
-        .divider::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            width: 40%;
+        .divider-line {
+            flex: 1;
             height: 2px;
             background: linear-gradient(to right,
-                transparent 0%,
-                var(--iron-gray) 50%,
-                transparent 100%
-            );
+                transparent, var(--iron-gray) 30%,
+                var(--gold-accent) 50%,
+                var(--iron-gray) 70%, transparent);
         }
 
-        .divider::before {
-            left: 0;
-        }
-
-        .divider::after {
-            right: 0;
-        }
-
-        .upload-label {
-            display: inline-block;
-            padding: 12px 24px;
-            background: linear-gradient(145deg, #4a3829, #3d2f1f);
-            border: 2px solid var(--leather-darker);
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            font-size: 13px;
-            font-weight: 600;
+        .divider-text {
+            color: var(--ink-faded);
+            font-size: 10px;
             font-family: var(--font-heading);
-            color: var(--parchment-light);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            box-shadow:
-                0 3px 6px rgba(0, 0, 0, 0.3),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            letter-spacing: 2px;
+            flex-shrink: 0;
         }
 
-        .upload-label:hover {
-            background: linear-gradient(145deg, #5a4839, #4d3f2f);
-            border-color: var(--leather-dark);
-            transform: translateY(-1px);
-            box-shadow:
-                0 4px 8px rgba(0, 0, 0, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.15);
-        }
-
-        #error-message {
-            display: none;
-            padding: 12px;
-            background: rgba(139, 30, 30, 0.15);
-            border: 2px solid var(--blood-red);
-            border-radius: 6px;
-            color: var(--blood-red);
-            font-size: 14px;
-            font-family: var(--font-body);
-            margin-bottom: 16px;
-            box-shadow: 0 2px 6px rgba(139, 30, 30, 0.2);
+        /* ── Centered action area ────────────────────────────────────────────── */
+        .action-area {
+            display: flex;
+            justify-content: center;
+            margin-top: 32px;
             position: relative;
             z-index: 1;
         }
 
+        /* Upload seal — dark, smaller */
+        .upload-seal-wrapper { display: flex; justify-content: center; }
+
+        /* ── Footer ──────────────────────────────────────────────────────────── */
         .footer {
             text-align: center;
-            margin-top: 32px;
-            color: var(--ink-faded);
-            font-size: 11px;
-            font-family: var(--font-body);
-            font-style: italic;
+            margin-top: 40px;
             position: relative;
             z-index: 1;
+        }
+
+        .footer-divider {
+            height: 1px;
+            background: linear-gradient(to right, transparent, var(--parchment-dark), transparent);
+            margin-bottom: 12px;
+        }
+
+        .footer p {
+            color: var(--ink-faded);
+            font-size: 10px;
+            font-style: italic;
+            opacity: 0.7;
         }
     </style>
 </head>
 <body>
-    <div class="lobby-container">
-        <h1>Nachtschall Map</h1>
-        <p class="subtitle">Interactive fog-of-war map for tabletop RPGs</p>
+    <div class="lobby-wrapper">
+        <div class="lobby-container">
 
-        <div id="error-message"></div>
-
-        <div class="tabs">
-            <button class="tab-button active" data-tab="join">Join Room</button>
-            <button class="tab-button" data-tab="create">Create Room</button>
-        </div>
-
-        <!-- Join Room Tab -->
-        <div class="tab-content active" id="join-tab">
-            <div class="form-group">
-                <label for="join-room-id">Room Code</label>
-                <input type="text" id="join-room-id" placeholder="Enter room code (e.g. ABC123)" maxlength="6">
-            </div>
-            <button class="btn btn-primary" id="join-btn">Join Room</button>
-        </div>
-
-        <!-- Create Room Tab -->
-        <div class="tab-content" id="create-tab">
-            <div class="form-group">
-                <label for="map-select">Choose Map</label>
-                <select id="map-select">
-                    <option value="">-- Select a map --</option>
-                </select>
+            <!-- Title -->
+            <div class="title-area">
+                <div class="ornament-row">
+                    <div class="ornament-line"></div>
+                    <span class="ornament-diamond">◆</span>
+                    <div class="ornament-line"></div>
+                </div>
+                <h1>Nachtschall Map</h1>
+                <p class="subtitle">Interactive fog-of-war map for tabletop RPGs</p>
             </div>
 
-            <div class="checkbox-group">
-                <input type="checkbox" id="show-preview-checkbox">
-                <label for="show-preview-checkbox" style="text-transform: none; font-weight: normal; margin: 0; cursor: pointer;">Show preview</label>
+            <!-- Error -->
+            <div id="error-message"></div>
+
+            <!-- Tab selector — wax seal buttons -->
+            <div class="seal-row">
+                <div class="seal-group">
+                    <button class="wax-seal tab-button active" data-tab="join">
+                        <!-- Door / arch icon -->
+                        <svg viewBox="0 0 26 26">
+                            <path d="M6 23V11a7 7 0 0114 0v12"/>
+                            <path d="M3 23h20"/>
+                            <circle cx="17.5" cy="16" r="1.5" fill="rgba(0,0,0,0.4)" stroke="none"/>
+                        </svg>
+                    </button>
+                    <span class="seal-label">Join Room</span>
+                </div>
+                <div class="seal-group">
+                    <button class="wax-seal tab-button" data-tab="create">
+                        <!-- Scroll / quill icon -->
+                        <svg viewBox="0 0 26 26">
+                            <path d="M19 4L8 22"/>
+                            <path d="M8 22c-2.5 0-4.5-2-3-4l2.5-3.5"/>
+                            <path d="M19 4c2-2 4.5 0.5 2.5 3.5L19 11"/>
+                        </svg>
+                    </button>
+                    <span class="seal-label">Create Room</span>
+                </div>
             </div>
 
-            <img id="map-preview" class="map-preview" alt="Map preview">
-
-            <div class="divider">OR</div>
-
-            <div style="text-align: center;">
-                <label for="map-file-input" class="upload-label">Upload Custom Map</label>
-                <input type="file" id="map-file-input" accept="image/*" style="display: none;">
+            <!-- Join tab -->
+            <div class="tab-content active" id="join-tab">
+                <div class="form-group">
+                    <label for="join-room-id">Room Code</label>
+                    <input type="text" id="join-room-id"
+                           placeholder="Enter room code (e.g. ABC123)"
+                           maxlength="6" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="action-area">
+                    <div class="seal-group">
+                        <button class="wax-seal wax-seal-action" id="join-btn">
+                            <!-- Arrow right -->
+                            <svg viewBox="0 0 26 26">
+                                <path d="M5 13h16M16 8l5 5-5 5"/>
+                            </svg>
+                        </button>
+                        <span class="seal-label">Enter Room</span>
+                    </div>
+                </div>
             </div>
 
-            <button class="btn btn-secondary" id="create-btn" style="margin-top: 24px;">Create Room</button>
-        </div>
+            <!-- Create tab -->
+            <div class="tab-content" id="create-tab">
+                <div class="form-group">
+                    <label for="map-select">Choose Map</label>
+                    <select id="map-select">
+                        <option value="">— Select a map —</option>
+                    </select>
+                </div>
 
-        <div class="footer">
-            Built with D3.js, Socket.IO, and Redis
+                <div class="checkbox-group">
+                    <input type="checkbox" id="show-preview-checkbox">
+                    <label for="show-preview-checkbox"
+                           style="text-transform:none;font-weight:normal;margin:0;cursor:pointer;">
+                        Show preview
+                    </label>
+                </div>
+
+                <img id="map-preview" class="map-preview" alt="Map preview">
+
+                <div class="divider">
+                    <div class="divider-line"></div>
+                    <span class="divider-text">or</span>
+                    <div class="divider-line"></div>
+                </div>
+
+                <!-- Upload seal -->
+                <div class="upload-seal-wrapper">
+                    <div class="seal-group">
+                        <label for="map-file-input" class="wax-seal tab-button" style="cursor:pointer;">
+                            <!-- Upload arrow -->
+                            <svg viewBox="0 0 26 26">
+                                <path d="M13 18V8M8 12l5-5 5 5"/>
+                                <path d="M6 21h14"/>
+                            </svg>
+                        </label>
+                        <span class="seal-label">Upload Map</span>
+                        <input type="file" id="map-file-input" accept="image/*" style="display:none;">
+                    </div>
+                </div>
+
+                <div class="action-area">
+                    <div class="seal-group">
+                        <button class="wax-seal wax-seal-action" id="create-btn">
+                            <!-- Plus / open -->
+                            <svg viewBox="0 0 26 26">
+                                <path d="M13 5v16M5 13h16"/>
+                            </svg>
+                        </button>
+                        <span class="seal-label">Open Room</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <div class="footer-divider"></div>
+                <p>Crafted with D3.js, Socket.IO &amp; Redis</p>
+            </div>
+
         </div>
     </div>
 
