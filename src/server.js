@@ -209,6 +209,23 @@ io.on('connection', (socket) => {
       case 'markerRemove':
         room.snapshot.markers = (room.snapshot.markers || []).filter(m => m.id !== action.data.id);
         break;
+      case 'markerUpdate':
+        room.snapshot.markers = room.snapshot.markers || [];
+        const markerToUpdate = room.snapshot.markers.find(m => m.id === action.data.id);
+        if (markerToUpdate) {
+          // Update existing marker
+          if (typeof action.data.nx === 'number') {
+            markerToUpdate.nx = action.data.nx;
+            markerToUpdate.ny = action.data.ny;
+          }
+          if (action.data.color !== undefined) markerToUpdate.color = action.data.color;
+          if (action.data.name !== undefined) markerToUpdate.name = action.data.name;
+        }
+        break;
+      case 'initiativeUpdate':
+        room.snapshot.initiativeRounds = action.data.rounds;
+        room.snapshot.initiativeAssignments = action.data.assignments;
+        break;
       case 'drawingAdd':
         room.snapshot.drawings = room.snapshot.drawings || [];
         room.snapshot.drawings.push(action.data);
@@ -217,6 +234,8 @@ io.on('connection', (socket) => {
         room.snapshot.revealShapes = [];
         room.snapshot.markers = [];
         room.snapshot.drawings = [];
+        room.snapshot.initiativeRounds = 3;
+        room.snapshot.initiativeAssignments = {};
         break;
       default:
         // unknown actions stored in history maybe

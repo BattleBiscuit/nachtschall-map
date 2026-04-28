@@ -821,6 +821,22 @@ function addMarker(x, y, color = null, providedId = null) {
             if (activeTool === 'tool2') {
                 d3.select(this).style("cursor", "grab");
                 saveToLocalStorage();
+
+                // Sync marker position to server
+                if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
+                    const p = normalizePoint(markerData.x, markerData.y);
+                    socket.emit('action', currentRoomId, {
+                        type: 'markerUpdate',
+                        data: {
+                            id: markerData.id,
+                            nx: p.nx,
+                            ny: p.ny,
+                            color: markerData.color,
+                            name: markerData.name || ""
+                        }
+                    });
+                }
+
                 setTimeout(() => { markerData.isDragging = false; }, 50);
             }
         });
@@ -909,6 +925,22 @@ function addMarker(x, y, color = null, providedId = null) {
                 }
 
                 saveToLocalStorage();
+
+                // Sync marker update to server
+                if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
+                    const p = normalizePoint(markerData.x, markerData.y);
+                    socket.emit('action', currentRoomId, {
+                        type: 'markerUpdate',
+                        data: {
+                            id: markerData.id,
+                            nx: p.nx,
+                            ny: p.ny,
+                            color: markerData.color,
+                            name: markerData.name || ""
+                        }
+                    });
+                }
+
                 document.body.removeChild(overlay);
 
                 // Update initiative tracker if visible
@@ -1896,6 +1928,43 @@ function connectSocket(cb) {
                 case 'markerRemove':
                     if (action.data && action.data.id) removeMarkerById(action.data.id);
                     break;
+                case 'markerUpdate':
+                    if (action.data && action.data.id) {
+                        const marker = markers.find(m => m.id === action.data.id);
+                        if (marker) {
+                            // Update position
+                            if (typeof action.data.nx === 'number') {
+                                const p = denormalizePoint(action.data.nx, action.data.ny);
+                                marker.x = p.x;
+                                marker.y = p.y;
+                                marker.element.attr("transform", `translate(${p.x}, ${p.y})`);
+                            }
+
+                            // Update name
+                            if (action.data.name !== undefined) {
+                                marker.name = action.data.name;
+                                marker.textElement.text(action.data.name);
+                            }
+
+                            // Update color
+                            if (action.data.color && action.data.color !== marker.color) {
+                                marker.color = action.data.color;
+                                const newColors = markerColors[action.data.color];
+                                marker.element.attr("data-color", action.data.color);
+                                marker.element.select('.marker-outer').attr("fill", `url(#marker-rim-${action.data.color})`);
+                                marker.element.select('.marker-body').attr("fill", `url(#marker-face-${action.data.color})`);
+                                marker.element.select('.marker-ornament').attr("fill", newColors.ornament);
+                            }
+
+                            saveToLocalStorage();
+
+                            // Update initiative tracker if visible
+                            if (initiativeSheet.style.display === 'block') {
+                                updateInitiativeTable();
+                            }
+                        }
+                    }
+                    break;
                 case 'drawingAdd':
                     // recreate drawing path from normalized points
                     if (action.data && Array.isArray(action.data.points)) {
@@ -1911,6 +1980,20 @@ function connectSocket(cb) {
                             .attr('stroke-linejoin', 'round')
                             .attr('class', 'drawing-path');
                         drawings.push({ id: action.data.id, points: pts.map(p => [p.x, p.y]), color: action.data.color, strokeWidth: (action.data.strokeWidthNorm || 0) * (mapDimensions.width || 1), pathData });
+                    }
+                    break;
+                case 'initiativeUpdate':
+                    if (action.data) {
+                        if (typeof action.data.rounds === 'number') {
+                            initiativeRounds = action.data.rounds;
+                        }
+                        if (action.data.assignments) {
+                            markerRoundAssignments = { ...action.data.assignments };
+                        }
+                        // Update initiative tracker if visible
+                        if (initiativeSheet.style.display === 'block') {
+                            updateInitiativeTable();
+                        }
                     }
                     break;
                 case 'reset':
@@ -2158,6 +2241,13 @@ function applyRemoteSnapshot(snap) {
                     drawings.push(d);
                 }
             });
+        }
+        // Load initiative tracker state
+        if (typeof snap.initiativeRounds === 'number') {
+            initiativeRounds = snap.initiativeRounds;
+        }
+        if (snap.initiativeAssignments) {
+            markerRoundAssignments = { ...snap.initiativeAssignments };
         }
     } finally {
         suppressLocalEvents = false;
@@ -2459,6 +2549,9 @@ function handleRoundDrop(e) {
         // Move the token
         e.currentTarget.appendChild(draggedMarkerToken);
         draggedMarkerToken.classList.remove('dragging');
+
+        // Sync initiative state to server
+        syncInitiativeState();
     }
 
     return false;
@@ -2510,6 +2603,9 @@ function handleMarkerTouchEnd(e) {
 
         markerRoundAssignments[markerId] = targetRound;
         roundCell.appendChild(touchDraggedToken);
+
+        // Sync initiative state to server
+        syncInitiativeState();
     }
 
     touchDraggedToken.classList.remove('dragging');
@@ -2519,10 +2615,24 @@ function handleMarkerTouchEnd(e) {
     touchClone = null;
 }
 
+// Sync initiative state to server
+function syncInitiativeState() {
+    if (socket && currentRoomId && isOwner && !suppressLocalEvents) {
+        socket.emit('action', currentRoomId, {
+            type: 'initiativeUpdate',
+            data: {
+                rounds: initiativeRounds,
+                assignments: markerRoundAssignments
+            }
+        });
+    }
+}
+
 // Add round button
 document.getElementById('add-round-btn').addEventListener('click', () => {
     initiativeRounds++;
     updateInitiativeTable();
+    syncInitiativeState();
 });
 
 // Reset tracker button
@@ -2532,6 +2642,7 @@ document.getElementById('reset-tracker-btn').addEventListener('click', () => {
     // Reset to 3 rounds
     initiativeRounds = 3;
     updateInitiativeTable();
+    syncInitiativeState();
 });
 
 // Update initiative table when markers change
