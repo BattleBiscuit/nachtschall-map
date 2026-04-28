@@ -2145,3 +2145,369 @@ function applyRemoteSnapshot(snap) {
 }
 
 // Overlay dismiss functionality removed - no upload overlay on map page
+
+// === Initiative Tracker ===
+const initiativeSheet = document.getElementById('initiative-sheet');
+const initiativeBtn = document.getElementById('initiative-btn');
+const initiativeTBody = document.getElementById('initiative-tbody');
+const initiativeEmpty = document.getElementById('initiative-empty');
+
+let isDraggingInitiative = false;
+let initiativeOffset = { x: 0, y: 0 };
+let draggedMarkerToken = null;
+let initiativeRounds = 3; // Start with 3 rounds
+let markerRoundAssignments = {}; // { markerId: roundIndex }
+
+// Toggle initiative overlay
+initiativeBtn.addEventListener('click', () => {
+    const isVisible = initiativeSheet.style.display === 'block';
+    initiativeSheet.style.display = isVisible ? 'none' : 'block';
+    if (!isVisible) {
+        updateInitiativeTable();
+    }
+});
+
+
+// Make initiative sheet draggable
+initiativeSheet.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button') || e.target.closest('.initiative-marker-token')) {
+        return;
+    }
+    isDraggingInitiative = true;
+    const rect = initiativeSheet.getBoundingClientRect();
+    initiativeOffset.x = e.clientX - rect.left;
+    initiativeOffset.y = e.clientY - rect.top;
+    e.preventDefault();
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!isDraggingInitiative) return;
+
+    const newLeft = e.clientX - initiativeOffset.x;
+    const newTop = e.clientY - initiativeOffset.y;
+
+    const maxLeft = window.innerWidth - initiativeSheet.offsetWidth;
+    const maxTop = window.innerHeight - initiativeSheet.offsetHeight;
+
+    initiativeSheet.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + 'px';
+    initiativeSheet.style.top = Math.max(0, Math.min(newTop, maxTop)) + 'px';
+    initiativeSheet.style.bottom = 'auto';
+    initiativeSheet.style.right = 'auto';
+});
+
+document.addEventListener('mouseup', () => {
+    isDraggingInitiative = false;
+});
+
+// Touch support for dragging sheet
+initiativeSheet.addEventListener('touchstart', (e) => {
+    if (e.target.closest('button') || e.target.closest('.initiative-marker-token')) {
+        return;
+    }
+    const touch = e.touches[0];
+    const rect = initiativeSheet.getBoundingClientRect();
+
+    isDraggingInitiative = true;
+    initiativeOffset.x = touch.clientX - rect.left;
+    initiativeOffset.y = touch.clientY - rect.top;
+    e.preventDefault();
+});
+
+document.addEventListener('touchmove', (e) => {
+    if (!isDraggingInitiative) return;
+
+    const touch = e.touches[0];
+    const newLeft = touch.clientX - initiativeOffset.x;
+    const newTop = touch.clientY - initiativeOffset.y;
+
+    const maxLeft = window.innerWidth - initiativeSheet.offsetWidth;
+    const maxTop = window.innerHeight - initiativeSheet.offsetHeight;
+
+    initiativeSheet.style.left = Math.max(0, Math.min(newLeft, maxLeft)) + 'px';
+    initiativeSheet.style.top = Math.max(0, Math.min(newTop, maxTop)) + 'px';
+    initiativeSheet.style.bottom = 'auto';
+    initiativeSheet.style.right = 'auto';
+});
+
+document.addEventListener('touchend', () => {
+    isDraggingInitiative = false;
+});
+
+// Update initiative table with current markers
+function updateInitiativeTable() {
+    // Clear tbody
+    initiativeTBody.innerHTML = '';
+
+    if (markers.length === 0) {
+        initiativeEmpty.style.display = 'block';
+        document.getElementById('initiative-table').style.display = 'none';
+        return;
+    }
+
+    initiativeEmpty.style.display = 'none';
+    document.getElementById('initiative-table').style.display = 'table';
+
+    // Create a row for each round (vertical layout)
+    for (let roundIdx = 0; roundIdx < initiativeRounds; roundIdx++) {
+        const row = document.createElement('tr');
+
+        // Round number header cell
+        const headerCell = document.createElement('th');
+        headerCell.textContent = `${roundIdx + 1}`;
+        row.appendChild(headerCell);
+
+        // Markers cell
+        const roundCell = document.createElement('td');
+        roundCell.className = 'initiative-round-cell';
+        roundCell.dataset.round = roundIdx;
+
+        // Add markers assigned to this round
+        markers.forEach(marker => {
+            if (markerRoundAssignments[marker.id] === roundIdx) {
+                const token = createMarkerToken(marker);
+                roundCell.appendChild(token);
+            }
+        });
+
+        // Make cell a drop zone
+        roundCell.addEventListener('dragover', handleRoundDragOver);
+        roundCell.addEventListener('drop', handleRoundDrop);
+
+        row.appendChild(roundCell);
+        initiativeTBody.appendChild(row);
+    }
+
+    // Add + Round button row
+    const addRoundRow = document.createElement('tr');
+    const addRoundCell = document.createElement('td');
+    addRoundCell.setAttribute('colspan', '2');
+    addRoundCell.style.textAlign = 'center';
+    addRoundCell.style.padding = '8px';
+    addRoundCell.innerHTML = '<button class="add-round-btn" onclick="addInitiativeRound()">+</button>';
+    addRoundRow.appendChild(addRoundCell);
+    initiativeTBody.appendChild(addRoundRow);
+
+    // Add unassigned markers to round 0 if they don't have an assignment
+    markers.forEach(marker => {
+        if (markerRoundAssignments[marker.id] === undefined) {
+            markerRoundAssignments[marker.id] = 0;
+            const firstRoundCell = initiativeTBody.querySelector('td[data-round="0"]');
+            if (firstRoundCell) {
+                const token = createMarkerToken(marker);
+                firstRoundCell.appendChild(token);
+            }
+        }
+    });
+}
+
+function createMarkerToken(marker) {
+    const token = document.createElement('div');
+    token.className = 'initiative-marker-token';
+    token.draggable = true;
+    token.dataset.markerId = marker.id;
+
+    const colors = markerColors[marker.color];
+    const gold = '#c9a961';
+    const R = 16; // Base radius for initiative tracker
+    const outerR = R * 1.28;
+    const innerR = R * 0.68;
+    const d = R * 0.3;
+    const sideH = Math.max(3, R * 0.2);
+
+    // Create SVG element
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', outerR * 2.5);
+    svg.setAttribute('height', outerR * 2.5);
+    svg.setAttribute('viewBox', `${-outerR * 1.25} ${-outerR * 1.25} ${outerR * 2.5} ${outerR * 2.5}`);
+
+    // Create gradient definitions
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+
+    // Rim gradient
+    const rimGrad = document.createElementNS('http://www.w3.org/2000/svg', 'radialGradient');
+    rimGrad.setAttribute('id', `token-rim-${marker.id}`);
+    rimGrad.innerHTML = `
+        <stop offset="75%" stop-color="${colors.stroke}" />
+        <stop offset="95%" stop-color="${colors.border}" />
+    `;
+    defs.appendChild(rimGrad);
+
+    // Face gradient
+    const faceGrad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+    faceGrad.setAttribute('id', `token-face-${marker.id}`);
+    faceGrad.setAttribute('x1', '0%');
+    faceGrad.setAttribute('y1', '0%');
+    faceGrad.setAttribute('x2', '0%');
+    faceGrad.setAttribute('y2', '100%');
+    faceGrad.innerHTML = `
+        <stop offset="0%" stop-color="${colors.fill}" stop-opacity="1.15" />
+        <stop offset="100%" stop-color="${colors.fill}" stop-opacity="0.85" />
+    `;
+    defs.appendChild(faceGrad);
+
+    svg.appendChild(defs);
+
+    // Chip thickness
+    const sideCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    sideCircle.setAttribute('r', outerR);
+    sideCircle.setAttribute('cy', sideH);
+    sideCircle.setAttribute('fill', colors.border);
+    svg.appendChild(sideCircle);
+
+    // Outer rim
+    const outerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    outerCircle.setAttribute('r', outerR);
+    outerCircle.setAttribute('fill', `url(#token-rim-${marker.id})`);
+    svg.appendChild(outerCircle);
+
+    // Chip face
+    const faceCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    faceCircle.setAttribute('r', R);
+    faceCircle.setAttribute('fill', `url(#token-face-${marker.id})`);
+    svg.appendChild(faceCircle);
+
+    // Inner gold ring
+    const goldRing = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    goldRing.setAttribute('r', innerR);
+    goldRing.setAttribute('fill', 'none');
+    goldRing.setAttribute('stroke', gold);
+    goldRing.setAttribute('stroke-width', Math.max(1.5, R * 0.09));
+    svg.appendChild(goldRing);
+
+    // Center diamond
+    const diamond = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    diamond.setAttribute('d', `M 0,${-d} L ${d},0 L 0,${d} L ${-d},0 Z`);
+    diamond.setAttribute('fill', colors.ornament);
+    svg.appendChild(diamond);
+
+    // Sheen
+    const sheen = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    sheen.setAttribute('cx', 0);
+    sheen.setAttribute('cy', -R * 0.32);
+    sheen.setAttribute('rx', R * 0.62);
+    sheen.setAttribute('ry', R * 0.2);
+    sheen.setAttribute('fill', 'rgba(255,255,255,0.10)');
+    svg.appendChild(sheen);
+
+    token.appendChild(svg);
+
+    // Drag handlers
+    token.addEventListener('dragstart', handleMarkerDragStart);
+    token.addEventListener('dragend', handleMarkerDragEnd);
+
+    // Touch drag handlers
+    token.addEventListener('touchstart', handleMarkerTouchStart);
+    token.addEventListener('touchmove', handleMarkerTouchMove);
+    token.addEventListener('touchend', handleMarkerTouchEnd);
+
+    return token;
+}
+
+function handleMarkerDragStart(e) {
+    draggedMarkerToken = e.target;
+    e.target.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', e.target.innerHTML);
+}
+
+function handleMarkerDragEnd(e) {
+    e.target.classList.remove('dragging');
+    draggedMarkerToken = null;
+}
+
+function handleRoundDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+}
+
+function handleRoundDrop(e) {
+    e.stopPropagation();
+    e.preventDefault();
+
+    if (draggedMarkerToken) {
+        const targetRound = parseInt(e.currentTarget.dataset.round, 10);
+        const markerId = draggedMarkerToken.dataset.markerId;
+
+        // Update assignment
+        markerRoundAssignments[markerId] = targetRound;
+
+        // Move the token
+        e.currentTarget.appendChild(draggedMarkerToken);
+        draggedMarkerToken.classList.remove('dragging');
+    }
+
+    return false;
+}
+
+// Touch drag support for markers
+let touchDraggedToken = null;
+let touchClone = null;
+let touchStartPos = { x: 0, y: 0 };
+
+function handleMarkerTouchStart(e) {
+    touchDraggedToken = e.currentTarget;
+    const touch = e.touches[0];
+    touchStartPos = { x: touch.clientX, y: touch.clientY };
+
+    // Create a clone for visual feedback
+    touchClone = touchDraggedToken.cloneNode(true);
+    touchClone.style.position = 'fixed';
+    touchClone.style.pointerEvents = 'none';
+    touchClone.style.opacity = '0.8';
+    touchClone.style.zIndex = '10000';
+    touchClone.style.left = touch.clientX + 'px';
+    touchClone.style.top = touch.clientY + 'px';
+    document.body.appendChild(touchClone);
+
+    touchDraggedToken.classList.add('dragging');
+}
+
+function handleMarkerTouchMove(e) {
+    if (!touchDraggedToken || !touchClone) return;
+
+    e.preventDefault();
+    const touch = e.touches[0];
+
+    touchClone.style.left = touch.clientX + 'px';
+    touchClone.style.top = touch.clientY + 'px';
+}
+
+function handleMarkerTouchEnd(e) {
+    if (!touchDraggedToken || !touchClone) return;
+
+    const touch = e.changedTouches[0];
+    const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
+    const roundCell = targetElement?.closest('.initiative-round-cell');
+
+    if (roundCell) {
+        const targetRound = parseInt(roundCell.dataset.round, 10);
+        const markerId = touchDraggedToken.dataset.markerId;
+
+        markerRoundAssignments[markerId] = targetRound;
+        roundCell.appendChild(touchDraggedToken);
+    }
+
+    touchDraggedToken.classList.remove('dragging');
+    document.body.removeChild(touchClone);
+
+    touchDraggedToken = null;
+    touchClone = null;
+}
+
+// Add round function (global so button onclick can access it)
+window.addInitiativeRound = function() {
+    initiativeRounds++;
+    updateInitiativeTable();
+};
+
+// Update initiative table when markers change
+const originalRemoveMarker = removeMarker;
+window.removeMarker = function(markerId) {
+    delete markerRoundAssignments[markerId];
+    const result = originalRemoveMarker(markerId);
+    if (initiativeSheet.style.display === 'block') {
+        updateInitiativeTable();
+    }
+    return result;
+};

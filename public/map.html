@@ -6,6 +6,18 @@
     <link rel="stylesheet" href="/css/medieval-theme.css">
     <title>Interactive Map - Fog of War</title>
     <style>
+        :root {
+            --font-medieval: 'MedievalSharp', cursive;
+            --font-primary: 'IM Fell English', serif;
+            --text-primary: #1a1410;
+            --text-secondary: #4a3829;
+            --wax-red: #9b2226;
+            --wax-red-dark: #7a1b1e;
+            --accent-gold: #c9a961;
+            --gold-light: #d4b976;
+            --leather-darker: #2a1f15;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -771,6 +783,197 @@
                 gap: 3px;
             }
         }
+
+        /* Initiative Tracker Overlay */
+        #initiative-sheet {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            z-index: 1000;
+            background: linear-gradient(135deg,
+                #f4e8d0 0%,
+                #e8d7b8 50%,
+                #f4e8d0 100%
+            );
+            width: auto;
+            max-width: 200px;
+            max-height: 500px;
+            padding: 12px;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.7),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3),
+                0 0 0 1px rgba(101, 67, 33, 0.3);
+            clip-path: polygon(
+                2% 0%, 5% 1%, 10% 0%, 15% 2%, 20% 1%, 25% 0%, 30% 1%, 35% 0%,
+                40% 2%, 45% 1%, 50% 0%, 55% 1%, 60% 0%, 65% 2%, 70% 1%, 75% 0%,
+                80% 1%, 85% 0%, 90% 2%, 95% 1%, 98% 0%,
+                100% 2%, 100% 5%, 99% 10%, 100% 15%, 99% 20%, 100% 25%, 99% 30%,
+                100% 35%, 99% 40%, 100% 45%, 99% 50%, 100% 55%, 99% 60%, 100% 65%,
+                99% 70%, 100% 75%, 99% 80%, 100% 85%, 99% 90%, 100% 95%, 99% 98%,
+                98% 100%, 95% 99%, 90% 100%, 85% 98%, 80% 99%, 75% 100%, 70% 99%,
+                65% 100%, 60% 98%, 55% 99%, 50% 100%, 45% 99%, 40% 100%, 35% 98%,
+                30% 99%, 25% 100%, 20% 99%, 15% 100%, 10% 98%, 5% 99%, 2% 100%,
+                0% 98%, 0% 95%, 1% 90%, 0% 85%, 1% 80%, 0% 75%, 1% 70%, 0% 65%,
+                1% 60%, 0% 55%, 1% 50%, 0% 45%, 1% 40%, 0% 35%, 1% 30%, 0% 25%,
+                1% 20%, 0% 15%, 1% 10%, 0% 5%, 1% 2%
+            );
+            cursor: grab;
+        }
+
+        #initiative-sheet:active {
+            cursor: grabbing;
+        }
+
+        #initiative-content {
+            overflow-y: auto;
+            max-height: 480px;
+        }
+
+        #initiative-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #initiative-content::-webkit-scrollbar-track {
+            background: rgba(101, 67, 33, 0.1);
+            border-radius: 4px;
+        }
+
+        #initiative-content::-webkit-scrollbar-thumb {
+            background: rgba(101, 67, 33, 0.3);
+            border-radius: 4px;
+        }
+
+        #initiative-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(101, 67, 33, 0.5);
+        }
+
+        #initiative-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-family: var(--font-primary);
+        }
+
+        #initiative-table th {
+            background: rgba(101, 67, 33, 0.2);
+            color: var(--text-primary);
+            font-weight: 600;
+            padding: 4px 6px;
+            text-align: left;
+            border: 1px solid rgba(101, 67, 33, 0.3);
+            font-size: 12px;
+            width: 50px;
+        }
+
+        #initiative-table td {
+            padding: 6px;
+            border: 1px solid rgba(101, 67, 33, 0.15);
+            vertical-align: middle;
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .initiative-round-cell {
+            min-height: 44px;
+            position: relative;
+            text-align: center;
+        }
+
+        .initiative-marker-token {
+            display: inline-block;
+            margin: 2px;
+            cursor: grab;
+            transition: all 0.15s ease;
+        }
+
+        .initiative-marker-token:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.1);
+        }
+
+        .initiative-marker-token.dragging {
+            opacity: 0.5;
+            cursor: grabbing;
+        }
+
+        .initiative-marker-token svg {
+            width: 32px;
+            height: 32px;
+            filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
+        }
+
+        .round-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .round-number {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .add-round-btn {
+            background: var(--accent-gold);
+            border: none;
+            color: var(--leather-darker);
+            padding: 2px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+
+        .add-round-btn:hover {
+            background: var(--gold-light);
+        }
+
+        #initiative-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+
+        #initiative-empty p {
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        #initiative-empty .hint {
+            font-size: 13px;
+            opacity: 0.7;
+        }
+
+        @media (max-width: 768px) {
+            #initiative-sheet {
+                width: 95%;
+                padding: 24px 16px;
+                max-height: 85vh;
+            }
+
+            #initiative-header h2 {
+                font-size: 20px;
+            }
+
+            #initiative-close {
+                width: 36px;
+                height: 36px;
+                font-size: 24px;
+            }
+
+            #initiative-table th,
+            #initiative-table td {
+                padding: 8px 6px;
+                font-size: 13px;
+            }
+
+            #initiative-table input[type="number"] {
+                width: 50px;
+                padding: 4px 6px;
+                font-size: 13px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -883,6 +1086,29 @@
                 </svg>
             </button>
             <span class="tool-label">Draw</span>
+        </div>
+        <div class="tool-item">
+            <button class="tool-button" id="initiative-btn" title="Initiative Tracker - Manage turn order">
+                <svg viewBox="0 0 24 24">
+                    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"></path>
+                </svg>
+            </button>
+            <span class="tool-label">Initiative</span>
+        </div>
+    </div>
+
+    <!-- Initiative Tracker Overlay -->
+    <div id="initiative-sheet" style="display: none;">
+        <div id="initiative-content">
+            <table id="initiative-table">
+                <tbody id="initiative-tbody">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+            <div id="initiative-empty" style="display: none;">
+                <p>No markers on the map yet.</p>
+                <p class="hint">Add markers using the Markers tool to track initiative.</p>
+            </div>
         </div>
     </div>
 
