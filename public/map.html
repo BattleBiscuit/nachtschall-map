@@ -199,12 +199,12 @@
         .tool-label {
             background: linear-gradient(to bottom, #f4e8d0, #e8d7b8);
             color: #3d2f1f;
-            font-size: 12px;
+            font-size: 14px;
             font-family: 'IM Fell English', serif;
             font-weight: 600;
             font-style: italic;
             letter-spacing: 0.5px;
-            padding: 4px 10px;
+            padding: 5px 12px;
             border: 1px solid #c9b79c;
             border-radius: 2px;
             box-shadow:
@@ -857,12 +857,13 @@
         #initiative-table th {
             background: rgba(101, 67, 33, 0.2);
             color: var(--text-primary);
-            font-weight: 600;
-            padding: 4px 6px;
-            text-align: left;
+            font-weight: 700;
+            padding: 8px 10px;
+            text-align: center;
             border: 1px solid rgba(101, 67, 33, 0.3);
-            font-size: 12px;
+            font-size: 18px;
             width: 50px;
+            font-family: var(--font-medieval);
         }
 
         #initiative-table td {
@@ -879,8 +880,10 @@
         }
 
         .initiative-marker-token {
-            display: inline-block;
-            margin: 2px;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 3px;
             cursor: grab;
             transition: all 0.15s ease;
         }
@@ -899,6 +902,18 @@
             width: 32px;
             height: 32px;
             filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
+        }
+
+        .initiative-marker-name {
+            font-size: 9px;
+            font-family: var(--font-primary);
+            color: var(--text-primary);
+            text-align: center;
+            margin-top: 2px;
+            max-width: 50px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .round-header {

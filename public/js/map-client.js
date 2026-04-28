@@ -793,6 +793,11 @@ function addMarker(x, y, color = null, providedId = null) {
     const markerData = { id: markerId, x, y, color: markerColor, name: "", element: markerGroup, textElement: markerText };
     markers.push(markerData);
 
+    // Update initiative tracker if visible
+    if (initiativeSheet.style.display === 'block') {
+        updateInitiativeTable();
+    }
+
     // Drag behavior (active only in marker mode)
     const drag = d3.drag()
         .filter(function(event) {
@@ -905,6 +910,11 @@ function addMarker(x, y, color = null, providedId = null) {
 
                 saveToLocalStorage();
                 document.body.removeChild(overlay);
+
+                // Update initiative tracker if visible
+                if (initiativeSheet.style.display === 'block') {
+                    updateInitiativeTable();
+                }
             };
 
             buttons.appendChild(cancelBtn);
@@ -988,6 +998,11 @@ function removeMarker(x, y) {
     // Save state after removal
     if (markersToRemove.length > 0) {
         saveToLocalStorage();
+
+        // Update initiative tracker if visible
+        if (initiativeSheet.style.display === 'block') {
+            updateInitiativeTable();
+        }
     }
 }
 
@@ -1014,6 +1029,11 @@ function removeMarkerById(id) {
     markers = markers.filter(m => m.id !== marker.id);
 
     saveToLocalStorage();
+
+    // Update initiative tracker if visible
+    if (initiativeSheet.style.display === 'block') {
+        updateInitiativeTable();
+    }
 }
 
 // Drawing functions
@@ -2390,6 +2410,15 @@ function createMarkerToken(marker) {
     svg.appendChild(sheen);
 
     token.appendChild(svg);
+
+    // Add marker name below the chip
+    if (marker.name) {
+        const nameLabel = document.createElement('span');
+        nameLabel.className = 'initiative-marker-name';
+        nameLabel.textContent = marker.name;
+        nameLabel.title = marker.name; // Show full name on hover
+        token.appendChild(nameLabel);
+    }
 
     // Drag handlers
     token.addEventListener('dragstart', handleMarkerDragStart);
