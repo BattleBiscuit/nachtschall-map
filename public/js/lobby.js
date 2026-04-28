@@ -84,7 +84,10 @@ document.getElementById('create-btn').addEventListener('click', () => {
         return;
     }
 
+    console.log('[lobby] Creating room with map aspect ratio:', selectedMapAspectRatio);
+
     connectSocket(() => {
+        console.log('[lobby] Socket connected, emitting createRoom');
         socket.emit('createRoom', {
             snapshot: {
                 mapFile: selectedMapFile,
@@ -94,7 +97,9 @@ document.getElementById('create-btn').addEventListener('click', () => {
                 drawings: []
             }
         }, (res) => {
+            console.log('[lobby] createRoom response:', res);
             if (res && res.ok) {
+                console.log('[lobby] Room created successfully:', res.roomId);
                 // Disconnect socket before navigating to avoid socket ID mismatch
                 if (socket) {
                     socket.disconnect();
@@ -104,11 +109,12 @@ document.getElementById('create-btn').addEventListener('click', () => {
                     window.location.href = `/room/${res.roomId}`;
                 }, 100);
             } else {
+                console.error('[lobby] Failed to create room:', res);
                 showError('Failed to create room: ' + (res?.error || 'Unknown error'));
             }
         });
     });
-});
+}, {passive: false});
 
 // Populate map chooser from maps.json
 const mapSelect = document.getElementById('map-select');

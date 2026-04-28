@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="/css/medieval-theme.css">
     <title>Interactive Map - Fog of War</title>
     <style>
@@ -558,18 +558,18 @@
             }
 
             #lobby-btn-container #lobby-btn {
-                width: 44px;
-                height: 44px;
+                width: 56px;
+                height: 56px;
             }
 
             #lobby-btn-container #lobby-btn svg {
-                width: 20px;
-                height: 20px;
+                width: 24px;
+                height: 24px;
             }
 
             #lobby-btn-container .tool-label {
-                font-size: 9px;
-                padding: 2px 6px;
+                font-size: 11px;
+                padding: 3px 8px;
             }
 
             /* Room info - top center */
@@ -602,18 +602,18 @@
             }
 
             .reset-tool-item .tool-button {
-                width: 44px;
-                height: 44px;
+                width: 56px;
+                height: 56px;
             }
 
             .reset-tool-item svg {
-                width: 20px;
-                height: 20px;
+                width: 24px;
+                height: 24px;
             }
 
             .reset-tool-item .tool-label {
-                font-size: 9px;
-                padding: 2px 6px;
+                font-size: 11px;
+                padding: 3px 8px;
             }
 
             /* Undo/redo - bottom center, below tools */
@@ -623,63 +623,64 @@
                 left: 50%;
                 transform: translateX(-50%);
                 flex-direction: row;
-                gap: 12px;
+                gap: 14px;
                 z-index: 1000;
             }
 
             #undo-redo-controls .tool-button {
-                width: 44px;
-                height: 44px;
+                width: 56px;
+                height: 56px;
             }
 
             #undo-redo-controls .tool-button svg {
-                width: 20px;
-                height: 20px;
+                width: 24px;
+                height: 24px;
             }
 
             #undo-redo-controls .tool-label {
-                font-size: 9px;
-                padding: 2px 6px;
+                font-size: 11px;
+                padding: 3px 8px;
             }
 
             /* Tool overlay - center bottom, above undo/redo */
             #tool-overlay {
                 position: fixed;
-                bottom: 70px;
+                bottom: 85px;
                 left: 50%;
                 transform: translateX(-50%);
                 flex-direction: row;
-                gap: 10px;
+                gap: 12px;
                 z-index: 1000;
             }
 
             .tool-button {
-                width: 50px;
-                height: 50px;
+                width: 58px;
+                height: 58px;
             }
 
             .tool-button svg {
-                width: 22px;
-                height: 22px;
+                width: 26px;
+                height: 26px;
             }
 
             .tool-label {
-                font-size: 10px;
-                padding: 3px 7px;
+                font-size: 11px;
+                padding: 3px 8px;
             }
 
             #color-palette-container {
-                padding: 5px 6px;
+                padding: 8px;
             }
 
             #color-buttons {
                 grid-template-columns: repeat(4, 1fr);
-                gap: 4px;
+                gap: 6px;
             }
 
             .color-button {
-                width: 26px;
-                height: 26px;
+                width: 36px;
+                height: 36px;
+                border: 3px solid #3d2f1f;
             }
         }
 
@@ -700,64 +701,65 @@
 
             #lobby-btn-container #lobby-btn,
             .reset-tool-item .tool-button {
-                width: 40px;
-                height: 40px;
+                width: 50px;
+                height: 50px;
             }
 
             #lobby-btn-container #lobby-btn svg,
             .reset-tool-item svg {
-                width: 18px;
-                height: 18px;
+                width: 22px;
+                height: 22px;
             }
 
             #lobby-btn-container .tool-label,
             .reset-tool-item .tool-label {
-                font-size: 8px;
-                padding: 2px 5px;
+                font-size: 10px;
+                padding: 3px 7px;
             }
 
             .tool-button {
-                width: 46px;
-                height: 46px;
+                width: 54px;
+                height: 54px;
             }
 
             .tool-button svg {
-                width: 20px;
-                height: 20px;
-            }
-
-            .tool-label {
-                font-size: 9px;
-                padding: 2px 6px;
-            }
-
-            .color-button {
                 width: 24px;
                 height: 24px;
             }
 
+            .tool-label {
+                font-size: 10px;
+                padding: 3px 7px;
+            }
+
+            .color-button {
+                width: 32px;
+                height: 32px;
+                border: 3px solid #3d2f1f;
+            }
+
             #tool-overlay {
-                gap: 8px;
-                bottom: 65px;
+                gap: 10px;
+                bottom: 75px;
             }
 
             #undo-redo-controls {
-                gap: 10px;
+                gap: 12px;
             }
 
             #undo-redo-controls .tool-button {
-                width: 40px;
-                height: 40px;
+                width: 50px;
+                height: 50px;
             }
 
             #undo-redo-controls .tool-button svg {
-                width: 18px;
-                height: 18px;
+                width: 22px;
+                height: 22px;
             }
 
             #undo-redo-controls .tool-label {
-                font-size: 8px;
-                padding: 2px 5px;
+                font-size: 10px;
+                padding: 3px 7px;
             }
 
             #color-palette-container {

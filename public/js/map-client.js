@@ -591,31 +591,47 @@ function drawRevealOnMask(x, y, radius) {
     maskCtx.globalCompositeOperation = 'source-over';
 }
 
-// Paint soft irregular fog back into the mask (source-over adds white opacity)
+// Paint fog back into the mask with the same torn edge style as reveal
 function drawFogOnMask(x, y, radius) {
     const maskCtx = maskCanvas.getContext('2d');
     const mx = x - fogTextureDims.x;
     const my = y - fogTextureDims.y;
-    const numBlobs = 4 + Math.floor(Math.random() * 4);
+    maskCtx.globalCompositeOperation = 'source-over';
+
+    // Create irregular polygon with same style as reveal (torn paper edges)
+    const numPoints = 30 + Math.floor(Math.random() * 10); // Same as reveal
+    maskCtx.beginPath();
+
+    for (let i = 0; i <= numPoints; i++) {
+        const angle = (i / numPoints) * Math.PI * 2;
+        // Same variance as reveal (0.65-1.0 range)
+        const variance = 0.65 + Math.random() * 0.35;
+        const r = radius * variance;
+        // Same angle offset for natural curves
+        const angleOffset = (Math.random() - 0.5) * 0.15;
+        const finalAngle = angle + angleOffset;
+
+        const px = mx + Math.cos(finalAngle) * r;
+        const py = my + Math.sin(finalAngle) * r;
+
+        if (i === 0) {
+            maskCtx.moveTo(px, py);
+        } else {
+            maskCtx.lineTo(px, py);
+        }
+    }
+
+    maskCtx.closePath();
+    maskCtx.fillStyle = 'rgba(255,255,255,1)';
+    maskCtx.fill();
+
+    // Add soft feathering on edges to match reveal
+    maskCtx.shadowColor = 'rgba(255,255,255,0.4)';
+    maskCtx.shadowBlur = 5;
+    maskCtx.fill();
+    maskCtx.shadowBlur = 0;
 
     maskCtx.globalCompositeOperation = 'source-over';
-    for (let i = 0; i < numBlobs; i++) {
-        const angle = (i / numBlobs) * Math.PI * 2 + Math.random();
-        const dist  = radius * 0.15 * Math.random();
-        const bx    = mx + Math.cos(angle) * dist;
-        const by    = my + Math.sin(angle) * dist;
-        const br    = radius * (0.75 + Math.random() * 0.3);
-        const g     = maskCtx.createRadialGradient(bx, by, 0, bx, by, br);
-        g.addColorStop(0,    'rgba(255,255,255,1)');
-        g.addColorStop(0.4,  'rgba(255,255,255,0.9)');
-        g.addColorStop(0.7,  'rgba(255,255,255,0.6)');
-        g.addColorStop(0.85, 'rgba(255,255,255,0.3)');
-        g.addColorStop(1,    'rgba(255,255,255,0)');
-        maskCtx.fillStyle = g;
-        maskCtx.beginPath();
-        maskCtx.arc(bx, by, br, 0, Math.PI * 2);
-        maskCtx.fill();
-    }
 }
 
 // Rebuild the mask from scratch using the revealShapes array (used for undo/redo and resize)
@@ -1116,12 +1132,21 @@ const zoom = d3.zoom()
         [10000, 10000]  // Large extent, will be updated when map loads
     ])
     .filter((event) => {
-        // Allow wheel zoom normally
+        // Allow wheel zoom
         if (event.type === 'wheel') return true;
-        // Allow pan with middle mouse button (button 1)
+
+        // Allow touch gestures (pinch-to-zoom, two-finger pan)
+        if (event.type === 'touchstart' || event.type === 'touchmove' || event.type === 'touchend') {
+            // Only allow zoom/pan gestures with 2+ fingers
+            // Single finger is reserved for drawing/revealing
+            return event.touches && event.touches.length >= 2;
+        }
+
+        // Allow pan with middle mouse button (desktop)
         if (event.type === 'mousedown' || event.type === 'mousemove') {
             return event.button === 1 || isMiddleMouseDown;
         }
+
         return false;
     })
     .on("zoom", (event) => {
@@ -1187,20 +1212,28 @@ svg.on("contextmenu", function(event) {
 });
 
 svg.on("mousedown touchstart", function(event) {
-    if (event.button === 1) {
+    const isTouch = event.type === 'touchstart';
+
+    // Prevent default touch behavior to avoid scrolling during draw/reveal
+    if (isTouch && canEdit()) {
+        event.preventDefault();
+    }
+
+    if (!isTouch && event.button === 1) {
         // Middle mouse button - for panning
         event.preventDefault();
         isMiddleMouseDown = true;
         mainContainer.node().classList.add('panning');
     } else {
-        // Left or right mouse button
+        // Touch or left/right mouse button
         // Block editing interactions for viewers (allow middle mouse panning above)
         if (!canEdit()) return;
-        if (event.button === 2) {
-            // Right mouse button
+
+        if (!isTouch && event.button === 2) {
+            // Right mouse button (desktop only)
             isRightMouseDown = true;
-        } else if (event.button === 0) {
-            // Left mouse button
+        } else if (isTouch || event.button === 0) {
+            // Touch or left mouse button
             isMouseDown = true;
 
             // Start drawing if in draw mode
@@ -1230,6 +1263,13 @@ svg.on("mouseup touchend", function(event) {
 });
 
 svg.on("mousemove touchmove", function(event) {
+    const isTouch = event.type === 'touchmove';
+
+    // Prevent scrolling during touch interactions when editing
+    if (isTouch && canEdit() && (isMouseDown || isDrawing)) {
+        event.preventDefault();
+    }
+
     const [x, y] = d3.pointer(event, g.node());
 
     // Update brush indicator position and show it when reveal tool is active
@@ -1260,10 +1300,10 @@ svg.on("mousemove touchmove", function(event) {
             lastRevealTime = now;
 
             if (isRightMouseDown) {
-                // Right mouse - add fog
+                // Right mouse - add fog (desktop only)
                 addFog(x, y);
             } else {
-                // Left mouse - reveal
+                // Left mouse or touch - reveal
                 revealArea(x, y);
             }
         }
