@@ -2182,7 +2182,12 @@ let markerRoundAssignments = {}; // { markerId: roundIndex }
 initiativeBtn.addEventListener('click', () => {
     const isVisible = initiativeSheet.style.display === 'block';
     initiativeSheet.style.display = isVisible ? 'none' : 'block';
-    if (!isVisible) {
+
+    // Toggle active state on button
+    if (isVisible) {
+        initiativeBtn.classList.remove('active');
+    } else {
+        initiativeBtn.classList.add('active');
         updateInitiativeTable();
     }
 });
@@ -2296,16 +2301,6 @@ function updateInitiativeTable() {
         row.appendChild(roundCell);
         initiativeTBody.appendChild(row);
     }
-
-    // Add + Round button row
-    const addRoundRow = document.createElement('tr');
-    const addRoundCell = document.createElement('td');
-    addRoundCell.setAttribute('colspan', '2');
-    addRoundCell.style.textAlign = 'center';
-    addRoundCell.style.padding = '8px';
-    addRoundCell.innerHTML = '<button class="add-round-btn" onclick="addInitiativeRound()">+</button>';
-    addRoundRow.appendChild(addRoundCell);
-    initiativeTBody.appendChild(addRoundRow);
 
     // Add unassigned markers to round 0 if they don't have an assignment
     markers.forEach(marker => {
@@ -2524,11 +2519,20 @@ function handleMarkerTouchEnd(e) {
     touchClone = null;
 }
 
-// Add round function (global so button onclick can access it)
-window.addInitiativeRound = function() {
+// Add round button
+document.getElementById('add-round-btn').addEventListener('click', () => {
     initiativeRounds++;
     updateInitiativeTable();
-};
+});
+
+// Reset tracker button
+document.getElementById('reset-tracker-btn').addEventListener('click', () => {
+    // Clear all round assignments
+    markerRoundAssignments = {};
+    // Reset to 3 rounds
+    initiativeRounds = 3;
+    updateInitiativeTable();
+});
 
 // Update initiative table when markers change
 const originalRemoveMarker = removeMarker;
