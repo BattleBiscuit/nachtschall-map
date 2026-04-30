@@ -4,27 +4,22 @@
     padding="1rem"
     class="left-panel"
   >
-    <h3 class="section-title">Actions</h3>
-
     <div v-if="isOwner" class="button-group">
       <WaxSealButton
         :active="activeTool === 'draw'"
         icon="✎"
-        label="Draw"
         color="red"
         size="medium"
         @click="toggleDrawTool"
       />
       <WaxSealButton
         icon="⚔"
-        label="Initiative"
         color="green"
         size="medium"
         @click="toggleInitiativeTracker"
       />
       <WaxSealButton
         icon="↻"
-        label="Reset All"
         color="red"
         size="medium"
         @click="handleReset"

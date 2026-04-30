@@ -447,11 +447,14 @@ function handleRemoveMarker(markerId) {
   position: relative;
   width: 100%;
   height: 100%; /* Fill parent grid cell */
+  min-height: 0; /* Allow shrinking in grid */
   overflow: hidden;
 }
 
 .map-svg {
-  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   cursor: crosshair;

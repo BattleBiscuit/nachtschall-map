@@ -172,7 +172,7 @@ onMounted(async () => {
   max-height: 100vh;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  grid-template-rows: 1fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: 1rem;
   padding: 2rem;
   box-sizing: border-box;
@@ -186,7 +186,7 @@ onMounted(async () => {
   flex-direction: column;
   gap: 1rem;
   align-items: stretch;
-  align-self: start;
+  min-height: 0;
   max-height: 100%;
   overflow-y: auto;
 }
@@ -208,6 +208,9 @@ onMounted(async () => {
   flex-direction: column;
   gap: 1rem;
   align-items: stretch;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 @media (max-width: 768px) {

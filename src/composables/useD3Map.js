@@ -26,7 +26,7 @@ export function useD3Map(svgRef, mapGroupRef) {
     const mapWidth = viewBox.width
     const mapHeight = viewBox.height
 
-    // Create zoom behavior
+    // Create zoom behavior with fixed minimum
     zoom = d3.zoom()
       .scaleExtent([uiStore.minZoom, uiStore.maxZoom])
       // Constrain panning: map coordinates (0,0) to (mapWidth, mapHeight)
@@ -52,7 +52,7 @@ export function useD3Map(svgRef, mapGroupRef) {
     // Apply zoom to SVG
     svg.call(zoom)
 
-    // Set initial zoom (identity = scale 1, map fills width)
+    // Set initial zoom (identity = scale 1)
     svg.call(zoom.transform, d3.zoomIdentity)
 
   }

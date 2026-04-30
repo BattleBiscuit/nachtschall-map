@@ -164,7 +164,7 @@ function handleClick(event) {
   transition: box-shadow 0.2s ease;
 }
 
-/* Stamped inner circle - ring outline only, not filled */
+/* Stamped inner circle - pressed depression */
 .seal-ring {
   position: absolute;
   top: 50%;
@@ -172,41 +172,45 @@ function handleClick(event) {
   transform: translate(-50%, -50%);
   border-radius: 50%;
   z-index: 2;
-  /* Just a ring, no background - shows wax beneath */
-  background: transparent;
-  /* Create depth with shadows only */
+  /* Darker background for pressed area */
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(0, 0, 0, 0.2),
+    rgba(0, 0, 0, 0.4)
+  );
+  /* Deep stamped impression */
   box-shadow:
-    /* Outer edge - darker ring */
-    0 0 0 1px rgba(0, 0, 0, 0.4),
-    /* Inner shadow - stamped depression */
-    inset 0 2px 6px rgba(0, 0, 0, 0.5),
-    inset 0 1px 3px rgba(0, 0, 0, 0.6),
-    /* Bottom highlight - light catching lip */
-    inset 0 -1px 1px rgba(255, 255, 255, 0.15);
+    /* Outer ring - stamp edge */
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    /* Deep inner shadow - pressed down */
+    inset 0 3px 8px rgba(0, 0, 0, 0.7),
+    inset 0 2px 4px rgba(0, 0, 0, 0.8),
+    /* Bottom light catching raised edge */
+    inset 0 -2px 2px rgba(255, 255, 255, 0.1);
 }
 
-/* Icon container - embossed into the wax */
+/* Icon container - pressed/stamped into the wax */
 .seal-icon {
   position: relative;
   z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Icon color with good contrast */
-  color: var(--seal-icon-color);
-  /* Stamped/pressed effect - dark shadows */
+  /* Darker color for pressed stamp effect */
+  color: rgba(0, 0, 0, 0.6);
+  /* Pressed/indented effect - inset shadows */
   text-shadow:
-    /* Main depth shadow */
-    0 2px 4px rgba(0, 0, 0, 0.7),
-    /* Stronger contact shadow */
-    0 1px 2px rgba(0, 0, 0, 0.8),
-    /* Edge definition */
-    1px 1px 1px rgba(0, 0, 0, 0.5),
-    /* Slight top highlight */
-    0 -1px 0 rgba(255, 255, 255, 0.1);
+    /* Deep impression shadow */
+    inset 0 2px 4px rgba(0, 0, 0, 0.8),
+    inset 0 1px 2px rgba(0, 0, 0, 0.9),
+    /* Bottom highlight from light catching the edge */
+    0 1px 0 rgba(255, 255, 255, 0.1),
+    /* Top edge darkness */
+    0 -1px 1px rgba(0, 0, 0, 0.5);
   font-family: var(--font-display);
   font-weight: bold;
-  opacity: 0.95;
+  filter: brightness(0.4);
+  opacity: 1;
 }
 
 /* Label below seal */
