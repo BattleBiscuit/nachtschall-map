@@ -4,6 +4,7 @@
     <div class="grid-container">
       <!-- Left Sidebar -->
       <div class="grid-left">
+        <RoomInfo />
         <LeftPanel />
         <MapControls />
       </div>
@@ -27,6 +28,7 @@ import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useSocket } from '@/composables/useSocket'
 import MapCanvas from '@/components/map/MapCanvas.vue'
+import RoomInfo from '@/components/map/RoomInfo.vue'
 import LeftPanel from '@/components/map/LeftPanel.vue'
 import MapControls from '@/components/map/MapControls.vue'
 import InitiativeTracker from '@/components/map/InitiativeTracker.vue'
