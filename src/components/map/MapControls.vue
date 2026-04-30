@@ -1,7 +1,7 @@
 <template>
   <ParchmentContainer
     width="240px"
-    padding="1.5rem"
+    padding="1rem"
     class="map-controls"
   >
     <!-- Color Palette -->
@@ -77,13 +77,13 @@ function updateRadius(event) {
 .map-controls {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .color-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.75rem;
+  gap: 0.5rem;
   justify-items: center;
 }
 
@@ -167,8 +167,8 @@ function updateRadius(event) {
 .brush-container {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem;
+  gap: 0.5rem;
+  padding: 0.25rem;
 }
 
 .brush-slider {

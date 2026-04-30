@@ -166,13 +166,15 @@ onMounted(async () => {
 
 .grid-container {
   width: 100%;
-  height: 100%;
+  height: 100vh;
+  max-height: 100vh;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: 1fr;
   gap: 1rem;
   padding: 2rem;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .grid-left {
@@ -182,6 +184,9 @@ onMounted(async () => {
   flex-direction: column;
   gap: 1rem;
   align-items: stretch;
+  align-self: start;
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 .grid-map {
@@ -189,7 +194,7 @@ onMounted(async () => {
   grid-row: 1;
   position: relative;
   overflow: visible; /* Show torn edges */
-  min-height: 0; /* Allow shrinking below content size */
+  min-height: 0;
   width: 100%;
   height: 100%;
 }

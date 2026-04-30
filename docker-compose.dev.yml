@@ -1,0 +1,33 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src:/usr/src/app/src
+      - ./server:/usr/src/app/server
+      - ./public:/usr/src/app/public
+      - ./index.html:/usr/src/app/index.html
+      - ./vite.config.js:/usr/src/app/vite.config.js
+      - /usr/src/app/node_modules  # Anonymous volume for node_modules
+    ports:
+      - "5173:5173"  # Vite dev server
+      - "3000:3000"  # Backend server
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - NODE_ENV=development
+    depends_on:
+      - redis
+    command: sh -c "npm run dev & npm run server"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-dev-data:/data
+    command: redis-server --appendonly yes
+
+volumes:
+  redis-dev-data:

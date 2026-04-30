@@ -12,12 +12,21 @@ export default defineConfig({
   },
 
   server: {
+    host: '0.0.0.0', // Listen on all interfaces for Docker
     port: 5173,
+    strictPort: true,
+    watch: {
+      usePolling: true // Required for Docker volume mounts
+    },
     proxy: {
       // Proxy WebSocket and API requests to backend during development
       '/socket.io': {
         target: 'http://localhost:3000',
         ws: true,
+        changeOrigin: true
+      },
+      '/api': {
+        target: 'http://localhost:3000',
         changeOrigin: true
       }
     }

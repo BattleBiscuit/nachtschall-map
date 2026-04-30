@@ -1,7 +1,7 @@
 <template>
   <ParchmentContainer
     width="240px"
-    padding="1.5rem"
+    padding="1rem"
     class="left-panel"
   >
     <!-- Room Info -->
@@ -111,14 +111,14 @@ function handleReset() {
 }
 
 .room-info {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1.5rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
   border-bottom: 2px solid var(--parchment-dark);
 }
 
 .room-title {
   font-family: var(--font-display);
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   color: var(--accent-red);
   margin: 0 0 0.5rem 0;
   text-align: center;
@@ -126,22 +126,22 @@ function handleReset() {
 
 .room-code {
   font-family: var(--font-heading);
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   color: var(--ink-black);
   text-align: center;
   letter-spacing: 0.15em;
   font-weight: bold;
-  padding: 0.5rem;
+  padding: 0.375rem;
   background: rgba(0, 0, 0, 0.05);
   border-radius: 4px;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
 }
 
 .role-badge {
   font-family: var(--font-body);
-  font-size: 0.875rem;
+  font-size: 0.8rem;
   text-align: center;
-  padding: 0.5rem;
+  padding: 0.375rem;
   border-radius: 4px;
   font-weight: bold;
 }
@@ -159,18 +159,18 @@ function handleReset() {
 }
 
 .owner-controls {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .control-section {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .section-title {
   font-family: var(--font-heading);
-  font-size: 1rem;
+  font-size: 0.875rem;
   color: var(--ink-black);
-  margin: 0 0 0.75rem 0;
+  margin: 0 0 0.5rem 0;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -179,14 +179,14 @@ function handleReset() {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .help-text {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.75rem;
+  gap: 0.2rem;
+  padding: 0.5rem;
   background: rgba(0, 0, 0, 0.05);
   border-radius: 4px;
 }

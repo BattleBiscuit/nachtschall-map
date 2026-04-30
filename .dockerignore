@@ -1,6 +1,17 @@
 node_modules
+dist
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
 .DS_Store
 .git
 .gitignore
+.vscode
+.idea
+.env
+.env.local
 logs
+public/uploads
+README.md
+*.md

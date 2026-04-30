@@ -108,15 +108,25 @@ app.use('/uploads', express.static(uploadsDir, {
   immutable: true
 }));
 
-// Serve Vue build output from dist directory
-const distDir = path.join(__dirname, '..', 'dist');
-app.use(express.static(distDir));
+// Serve Vue build output from dist directory (production only)
+// In development, Vite dev server (port 5173) serves the frontend
+const isProduction = process.env.NODE_ENV === 'production';
 
-// Fallback to index.html for SPA routing (Vue Router)
-// This must come after all other routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(distDir, 'index.html'));
-});
+if (isProduction) {
+  const distDir = path.join(__dirname, '..', 'dist');
+  app.use(express.static(distDir));
+
+  // Fallback to index.html for SPA routing (Vue Router)
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+} else {
+  // Development mode - just provide API endpoints
+  // Frontend is served by Vite on port 5173
+  app.get('/', (req, res) => {
+    res.send('Backend server running. Frontend at http://localhost:5173');
+  });
+}
 
 // ── Redis Connection & Helpers ───────────────────────────────────────────────
 

@@ -74,23 +74,58 @@ nachtschall-map/
 
 ### Development
 
+**Option 1: Docker (Recommended)**
 ```bash
+# Start everything in containers with hot reload
+docker-compose -f docker-compose.dev.yml up
+
+# Or run in background
+docker-compose -f docker-compose.dev.yml up -d
+
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f
+
+# Stop containers
+docker-compose -f docker-compose.dev.yml down
+```
+
+This will:
+- Start Vite dev server with hot module reload (port 5173)
+- Start backend server (port 3000)
+- Start Redis for state persistence
+- Mount source code as volumes for live editing
+
+Access the app at `http://localhost:5173`
+
+**Option 2: Local (without Docker)**
+```bash
+# Install and start Redis locally
+redis-server
+
 # Install dependencies
 npm install
 
-# Start server (requires Redis running)
-npm start
+# Run dev server
+npm run dev
 
-# Or use Docker Compose
-docker-compose up
+# In another terminal, run backend server
+npm run server
 ```
+
+Access the app at `http://localhost:5173` (Vite dev server)
 
 ### Production
 
 ```bash
-# Build and deploy
+# Build and deploy with Docker Compose
 docker-compose up -d
 ```
+
+This will:
+- Build the Vue app (`npm run build`)
+- Start the Node.js server serving the built app
+- Start Redis for room state persistence
+- Expose the app on port 3000
 
 **Environment Variables:**
 - `PORT` - Server port (default: 3000)
