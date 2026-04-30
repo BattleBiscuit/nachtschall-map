@@ -84,8 +84,7 @@ export const useSocketStore = defineStore('socket', {
             resolve({
               role: response.role,
               snapshot: response.snapshot,
-              snapshotHash: response.snapshotHash,
-              historyStack: response.historyStack
+              snapshotHash: response.snapshotHash
             })
           } else {
             reject(new Error(response.error || 'Failed to join room'))

@@ -213,25 +213,25 @@ async function handleCreateRoom() {
 
   try {
     // Prepare map data
-    let mapFile = null
+    let mapUrl = null
     let mapAspectRatio = 1
 
     if (uploadedFile.value) {
-      // Convert uploaded file to data URL
-      mapFile = await fileToDataURL(uploadedFile.value)
-      const img = await loadImage(mapFile)
-      mapAspectRatio = img.width / img.height
+      // Upload file to server
+      const mapData = await uploadMapFile(uploadedFile.value)
+      mapUrl = mapData.url
+      mapAspectRatio = mapData.aspectRatio
     } else if (selectedMap.value) {
-      // Load preset map
-      const presetPath = `/assets/${selectedMap.value}-map.png`
-      mapFile = await urlToDataURL(presetPath)
-      const img = await loadImage(mapFile)
-      mapAspectRatio = img.width / img.height
+      // Use preset map URL
+      const presetUrl = `/assets/${selectedMap.value}-map.png`
+      const mapData = await getPresetMapData(presetUrl)
+      mapUrl = mapData.url
+      mapAspectRatio = mapData.aspectRatio
     }
 
     // Create room with map
     const snapshot = {
-      mapFile,
+      mapUrl,
       mapAspectRatio,
       revealShapes: [],
       markers: [],
@@ -252,27 +252,28 @@ async function handleCreateRoom() {
 }
 
 // Helper functions
-function fileToDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
+async function uploadMapFile(file) {
+  const formData = new FormData()
+  formData.append('map', file)
+
+  const response = await fetch('/api/upload-map', {
+    method: 'POST',
+    body: formData
   })
+
+  if (!response.ok) {
+    throw new Error('Upload failed')
+  }
+
+  return await response.json()
 }
 
-function urlToDataURL(url) {
-  return new Promise((resolve, reject) => {
-    fetch(url)
-      .then(res => res.blob())
-      .then(blob => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result)
-        reader.onerror = reject
-        reader.readAsDataURL(blob)
-      })
-      .catch(reject)
-  })
+async function getPresetMapData(url) {
+  const img = await loadImage(url)
+  return {
+    url: url,
+    aspectRatio: img.naturalWidth / img.naturalHeight
+  }
 }
 
 function loadImage(src) {

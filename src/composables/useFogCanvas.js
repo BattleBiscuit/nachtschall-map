@@ -31,9 +31,9 @@ export function useFogCanvas(canvasRef) {
     renderer = new FogRenderer(canvasRef.value)
 
     // Initialize with map data
-    if (roomStore.mapImageDataUrl) {
+    if (roomStore.mapUrl) {
       try {
-        await renderer.init(roomStore.mapImageDataUrl, roomStore.mapAspectRatio)
+        await renderer.init(roomStore.mapUrl, roomStore.mapAspectRatio)
 
         // Resize canvases to match container
         renderer.resizeCanvases()

@@ -19,8 +19,8 @@
     >
       <g ref="mapGroup">
         <image
-          v-if="mapImageDataUrl"
-          :href="mapImageDataUrl"
+          v-if="mapUrl"
+          :href="mapUrl"
           x="0"
           y="0"
           :width="1000"
@@ -131,7 +131,7 @@ const editingMarkerName = computed(() => {
   return marker?.name || ''
 })
 
-const mapImageDataUrl = computed(() => roomStore.mapImageDataUrl)
+const mapUrl = computed(() => roomStore.mapUrl)
 const mapAspectRatio = computed(() => roomStore.mapAspectRatio)
 const revealRadius = computed(() => uiStore.revealRadius)
 const currentMarkerColor = computed(() => uiStore.currentMarkerColor)

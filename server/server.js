@@ -4,6 +4,9 @@ import { Server } from 'socket.io';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createClient } from 'redis';
+import multer from 'multer';
+import sharp from 'sharp';
+import fs from 'fs/promises';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +39,74 @@ const PORT = process.env.PORT || 3000;
 const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
 
 // ── HTTP Routes ───────────────────────────────────────────────────────────────
+
+// Map upload configuration
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '..', 'public', 'uploads', 'maps');
+    await fs.mkdir(uploadDir, { recursive: true });
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    cb(null, `map-${uniqueId}.webp`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) cb(null, true);
+    else cb(new Error('Only image files allowed'));
+  }
+});
+
+// Upload map endpoint - optimizes to WebP automatically
+app.post('/api/upload-map', upload.single('map'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const filePath = req.file.path;
+
+    // Optimize with Sharp: WebP conversion, max 4K resolution
+    await sharp(filePath)
+      .webp({ quality: 85 })
+      .resize(4096, 4096, { fit: 'inside', withoutEnlargement: true })
+      .toFile(filePath + '.tmp');
+
+    // Replace original with optimized
+    await fs.unlink(filePath);
+    await fs.rename(filePath + '.tmp', filePath);
+
+    // Get metadata for aspect ratio
+    const metadata = await sharp(filePath).metadata();
+    const aspectRatio = metadata.width / metadata.height;
+
+    res.json({
+      url: `/uploads/maps/${req.file.filename}`,
+      aspectRatio,
+      width: metadata.width,
+      height: metadata.height,
+      size: metadata.size
+    });
+  } catch (error) {
+    console.error('[upload] error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Serve uploaded maps with cache headers
+const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
+app.use('/uploads', express.static(uploadsDir, {
+  maxAge: '1y',
+  immutable: true
+}));
 
 // Serve Vue build output from dist directory
 const distDir = path.join(__dirname, '..', 'dist');
@@ -129,7 +200,7 @@ io.on('connection', (socket) => {
     const roomId = makeRoomId();
     const room = {
       owner: socket.id,
-      snapshot: payload && payload.snapshot ? payload.snapshot : { mapFile: null, mapAspectRatio: 1, revealShapes: [], markers: [], drawings: [] }
+      snapshot: payload && payload.snapshot ? payload.snapshot : { mapUrl: null, mapAspectRatio: 1, revealShapes: [], markers: [], drawings: [] }
     };
     await setRoom(roomId, room);
     socket.join(roomId);
@@ -197,7 +268,7 @@ io.on('connection', (socket) => {
     // Apply action to snapshot (basic handling)
     switch (action.type) {
       case 'setMap':
-        room.snapshot.mapFile = action.data.mapFile;
+        room.snapshot.mapUrl = action.data.mapUrl;
         room.snapshot.mapAspectRatio = action.data.mapAspectRatio || room.snapshot.mapAspectRatio;
         break;
       case 'reveal':

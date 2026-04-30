@@ -86,12 +86,12 @@ onMounted(async () => {
     const response = await joinRoom(props.code)
 
     // Check if we have cached data for this room
-    const isRejoining = roomStore.roomId === props.code && roomStore.mapImageDataUrl
+    const isRejoining = roomStore.roomId === props.code && roomStore.mapUrl
 
     if (isRejoining && response.snapshotHash) {
       // Validate localStorage against server hash
       const localSnapshot = {
-        mapFile: roomStore.mapImageDataUrl,
+        mapUrl: roomStore.mapUrl,
         mapAspectRatio: roomStore.mapAspectRatio,
         markers: roomStore.markers,
         revealShapes: roomStore.revealShapes,
@@ -116,11 +116,6 @@ onMounted(async () => {
 
     // Update role (might have changed)
     roomStore.isOwner = response.role === 'owner'
-
-    // If owner, load history stack
-    if (response.historyStack) {
-      roomStore.setHistoryStack(response.historyStack)
-    }
   } catch (error) {
     console.error('[MapView] Failed to join room:', error)
 

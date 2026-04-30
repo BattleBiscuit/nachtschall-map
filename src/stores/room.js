@@ -5,7 +5,7 @@ export const useRoomStore = defineStore('room', {
     // Room metadata
     roomId: null,
     isOwner: false,
-    mapImageDataUrl: null,
+    mapUrl: null,
     mapAspectRatio: 1,
 
     // Map state
@@ -19,21 +19,17 @@ export const useRoomStore = defineStore('room', {
     initiativeRounds: 3,
     markerRoundAssignments: {},
 
-    // History (undo/redo) - loaded from Redis for owner only
-    historyStack: [],
-    historyIndex: -1,
-
     // For triggering fog updates from other clients
     lastReceivedFogShape: null,
 
-    // For triggering fog mask rebuild on undo/redo
+    // For triggering fog mask rebuild (e.g., server sync)
     fogRebuildTrigger: 0
   }),
 
   actions: {
     // Set entire room snapshot (on join)
     setRoomSnapshot(snapshot) {
-      this.mapImageDataUrl = snapshot.mapFile || null
+      this.mapUrl = snapshot.mapUrl || null
       this.mapAspectRatio = snapshot.mapAspectRatio || 1
       this.markers = snapshot.markers || []
       this.revealShapes = snapshot.revealShapes || []
@@ -42,28 +38,18 @@ export const useRoomStore = defineStore('room', {
       this.markerRoundAssignments = snapshot.initiativeAssignments || {}
     },
 
-    // Set history stack (owner only, loaded from Redis)
-    setHistoryStack(historyStack) {
-      if (Array.isArray(historyStack)) {
-        this.historyStack = historyStack
-        this.historyIndex = historyStack.length - 1
-      }
-    },
-
     // Marker actions
     addMarker(marker) {
       this.markers.push({
         ...marker,
         id: marker.id || `marker-${++this.markerIdCounter}`
       })
-      // this.saveToHistory() - disabled for simplicity
     },
 
     updateMarker(id, updates) {
       const index = this.markers.findIndex(m => m.id === id)
       if (index !== -1) {
         this.markers[index] = { ...this.markers[index], ...updates }
-        // this.saveToHistory() - disabled for simplicity
       }
     },
 
@@ -71,14 +57,11 @@ export const useRoomStore = defineStore('room', {
       this.markers = this.markers.filter(m => m.id !== id)
       // Also remove from initiative
       delete this.markerRoundAssignments[id]
-      // this.saveToHistory() - disabled for simplicity
     },
 
     // Fog actions
     addRevealShape(shape) {
       this.revealShapes.push(shape)
-      // Don't save to history for every fog shape - too many during drag
-      // History is saved on other actions (markers, etc)
     },
 
     // Drawing actions
@@ -87,7 +70,6 @@ export const useRoomStore = defineStore('room', {
         ...drawing,
         id: drawing.id || `drawing-${++this.drawingIdCounter}`
       })
-      // this.saveToHistory() - disabled for simplicity
     },
 
     // Initiative actions
@@ -101,7 +83,6 @@ export const useRoomStore = defineStore('room', {
           ...updates.assignments
         }
       }
-      // this.saveToHistory() - disabled for simplicity
     },
 
     // Reset all state
@@ -114,72 +95,13 @@ export const useRoomStore = defineStore('room', {
 
       // Trigger fog canvas to rebuild (empty mask)
       this.fogRebuildTrigger++
-
-      // this.saveToHistory() - disabled for simplicity
-    },
-
-    // History management
-    saveToHistory() {
-      if (!this.isOwner) return
-
-      const snapshot = {
-        mapFile: this.mapImageDataUrl,
-        mapAspectRatio: this.mapAspectRatio,
-        markers: [...this.markers],
-        revealShapes: [...this.revealShapes],
-        drawings: [...this.drawings],
-        initiativeRounds: this.initiativeRounds,
-        initiativeAssignments: { ...this.markerRoundAssignments }
-      }
-
-      // Trim history if we're not at the end
-      if (this.historyIndex < this.historyStack.length - 1) {
-        this.historyStack = this.historyStack.slice(0, this.historyIndex + 1)
-      }
-
-      // Add new snapshot
-      this.historyStack.push(snapshot)
-
-      // Limit to 50 snapshots
-      if (this.historyStack.length > 50) {
-        this.historyStack.shift()
-      } else {
-        this.historyIndex++
-      }
-    },
-
-    undo() {
-      if (!this.isOwner || this.historyIndex <= 0) return
-
-      this.historyIndex--
-      this.restoreSnapshot(this.historyStack[this.historyIndex])
-    },
-
-    redo() {
-      if (!this.isOwner || this.historyIndex >= this.historyStack.length - 1) return
-
-      this.historyIndex++
-      this.restoreSnapshot(this.historyStack[this.historyIndex])
-    },
-
-    restoreSnapshot(snapshot) {
-      this.mapImageDataUrl = snapshot.mapFile
-      this.mapAspectRatio = snapshot.mapAspectRatio
-      this.markers = [...snapshot.markers]
-      this.revealShapes = [...snapshot.revealShapes]
-      this.drawings = [...snapshot.drawings]
-      this.initiativeRounds = snapshot.initiativeRounds
-      this.markerRoundAssignments = { ...snapshot.initiativeAssignments }
-
-      // Trigger fog canvas to rebuild mask from new revealShapes
-      this.fogRebuildTrigger++
     },
 
     // Apply action from socket (from other users or server)
     applyAction(action) {
       switch (action.type) {
         case 'setMap':
-          this.mapImageDataUrl = action.data.mapFile
+          this.mapUrl = action.data.mapUrl
           this.mapAspectRatio = action.data.mapAspectRatio
           break
         case 'reveal':
@@ -217,7 +139,7 @@ export const useRoomStore = defineStore('room', {
     clearRoom() {
       this.roomId = null
       this.isOwner = false
-      this.mapImageDataUrl = null
+      this.mapUrl = null
       this.mapAspectRatio = 1
       this.markers = []
       this.markerIdCounter = 0
@@ -226,8 +148,6 @@ export const useRoomStore = defineStore('room', {
       this.drawingIdCounter = 0
       this.initiativeRounds = 3
       this.markerRoundAssignments = {}
-      this.historyStack = []
-      this.historyIndex = -1
     }
   },
 
@@ -237,7 +157,7 @@ export const useRoomStore = defineStore('room', {
     paths: [
       'roomId',
       'isOwner',
-      'mapImageDataUrl',
+      'mapUrl',
       'mapAspectRatio',
       'markers',
       'markerIdCounter',
@@ -247,6 +167,5 @@ export const useRoomStore = defineStore('room', {
       'initiativeRounds',
       'markerRoundAssignments'
     ]
-    // historyStack excluded - stored in Redis, loaded on owner join
   }
 })
