@@ -15,7 +15,7 @@
       ref="svgElement"
       class="map-svg"
       :viewBox="`0 0 1000 ${1000 / mapAspectRatio}`"
-      preserveAspectRatio="xMinYMin slice"
+      preserveAspectRatio="xMidYMid meet"
     >
       <g ref="mapGroup">
         <image

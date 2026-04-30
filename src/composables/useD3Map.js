@@ -21,9 +21,17 @@ export function useD3Map(svgRef, mapGroupRef) {
     svg = d3.select(svgRef.value)
     const mapGroup = d3.select(mapGroupRef.value)
 
+    // Get viewBox dimensions (map coordinate space)
+    const viewBox = svgRef.value.viewBox.baseVal
+    const mapWidth = viewBox.width
+    const mapHeight = viewBox.height
+
     // Create zoom behavior
     zoom = d3.zoom()
       .scaleExtent([uiStore.minZoom, uiStore.maxZoom])
+      // Constrain panning: map coordinates (0,0) to (mapWidth, mapHeight)
+      // can only be within these bounds
+      .translateExtent([[0, 0], [mapWidth, mapHeight]])
       .filter((event) => {
         // Allow zoom on wheel (type: wheel)
         // Allow pan only on middle mouse button (button === 1)

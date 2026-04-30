@@ -17,7 +17,7 @@ export const useUiStore = defineStore('ui', {
     minRevealRadius: 20,
     maxRevealRadius: 200,
     initialZoom: 1,
-    minZoom: 0.5,
+    minZoom: 1,
     maxZoom: 3,
     currentZoomTransform: null
   }),
