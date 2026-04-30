@@ -1,17 +1,15 @@
 <template>
-  <Teleport to="body">
-    <Transition name="fade">
-      <ParchmentContainer
-        v-if="visible"
-        floating
-        class="initiative-tracker"
-        width="600px"
-        padding="1.5rem"
-      >
-        <div class="tracker-header">
-          <h3 class="tracker-title">Initiative Tracker</h3>
-          <button class="close-button" @click="close">✕</button>
-        </div>
+  <Transition name="slide">
+    <ParchmentContainer
+      v-if="visible"
+      class="initiative-tracker"
+      width="280px"
+      padding="1.5rem"
+    >
+      <div class="tracker-header">
+        <h3 class="tracker-title">Initiative</h3>
+        <button class="close-button" @click="close">✕</button>
+      </div>
 
         <div class="tracker-body">
           <div v-if="markers.length === 0" class="empty-state">
@@ -23,7 +21,7 @@
             <div
               v-for="round in rounds"
               :key="round"
-              class="round-column"
+              class="round-section"
               @drop="handleDrop($event, round)"
               @dragover.prevent
             >
@@ -48,7 +46,7 @@
 
             <!-- Unassigned markers -->
             <div
-              class="round-column unassigned"
+              class="round-section unassigned"
               @drop="handleDrop($event, null)"
               @dragover.prevent
             >
@@ -74,19 +72,18 @@
         </div>
 
         <div class="tracker-actions">
-          <WaxSealButton @click="addRound" color="green" size="small">
-            Add Round
+          <WaxSealButton @click="addRound" color="green" size="small" icon="+">
+            Round
           </WaxSealButton>
-          <WaxSealButton @click="removeRound" color="gray" size="small" :disabled="rounds.length <= 1">
-            Remove Round
+          <WaxSealButton @click="removeRound" color="gray" size="small" icon="-" :disabled="rounds.length <= 1">
+            Round
           </WaxSealButton>
-          <WaxSealButton @click="resetRounds" color="red" size="small">
-            Reset All
+          <WaxSealButton @click="resetRounds" color="red" size="small" icon="↻">
+            Reset
           </WaxSealButton>
         </div>
       </ParchmentContainer>
     </Transition>
-  </Teleport>
 </template>
 
 <script setup>
@@ -224,15 +221,10 @@ function close() {
 
 <style scoped>
 .initiative-tracker {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 900;
-  max-height: 80vh;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 .tracker-header {
@@ -283,21 +275,19 @@ function close() {
 
 .rounds-container {
   display: flex;
+  flex-direction: column;
   gap: 1rem;
-  overflow-x: auto;
-  padding-bottom: 0.5rem;
+  overflow-y: auto;
 }
 
-.round-column {
-  min-width: 120px;
-  flex-shrink: 0;
+.round-section {
   background: rgba(255, 255, 255, 0.3);
   border: 2px solid var(--parchment-dark);
   border-radius: 8px;
   padding: 0.75rem;
 }
 
-.round-column.unassigned {
+.round-section.unassigned {
   background: rgba(201, 183, 156, 0.2);
 }
 
@@ -317,14 +307,14 @@ function close() {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  min-height: 60px;
+  min-height: 40px;
 }
 
 .marker-token {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.5rem;
   padding: 0.5rem;
   background: rgba(255, 255, 255, 0.5);
   border-radius: 6px;
@@ -351,35 +341,40 @@ function close() {
 
 .tracker-actions {
   display: flex;
-  gap: 0.75rem;
-  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
   padding-top: 1rem;
   border-top: 2px solid var(--parchment-dark);
 }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
+.slide-enter-active,
+.slide-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
-.fade-enter-from,
-.fade-leave-to {
+.slide-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.slide-leave-to {
+  transform: translateX(100%);
   opacity: 0;
 }
 
 /* Scrollbar styling */
 .rounds-container::-webkit-scrollbar {
-  height: 8px;
+  width: 6px;
 }
 
 .rounds-container::-webkit-scrollbar-track {
   background: var(--parchment-light);
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 .rounds-container::-webkit-scrollbar-thumb {
   background: var(--parchment-dark);
-  border-radius: 4px;
+  border-radius: 3px;
 }
 
 .rounds-container::-webkit-scrollbar-thumb:hover {

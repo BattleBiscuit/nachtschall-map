@@ -12,10 +12,12 @@
       <div class="grid-map">
         <MapCanvas />
       </div>
-    </div>
 
-    <!-- Floating Overlays -->
-    <InitiativeTracker />
+      <!-- Right Sidebar (Initiative) -->
+      <div class="grid-right">
+        <InitiativeTracker />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -166,7 +168,7 @@ onMounted(async () => {
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-rows: 1fr;
   gap: 1rem;
   padding: 2rem;
@@ -182,7 +184,6 @@ onMounted(async () => {
   align-items: stretch;
 }
 
-
 .grid-map {
   grid-column: 2;
   grid-row: 1;
@@ -191,6 +192,15 @@ onMounted(async () => {
   min-height: 0; /* Allow shrinking below content size */
   width: 100%;
   height: 100%;
+}
+
+.grid-right {
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
 }
 
 @media (max-width: 768px) {
@@ -210,7 +220,7 @@ onMounted(async () => {
     grid-row: 2;
   }
 
-  .grid-bottom {
+  .grid-right {
     grid-column: 1;
     grid-row: 3;
   }
