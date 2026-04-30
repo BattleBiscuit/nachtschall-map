@@ -2,25 +2,19 @@
   <div class="map-view">
     <!-- Grid Layout -->
     <div class="grid-container">
-      <!-- Left Panel -->
+      <!-- Left Sidebar -->
       <div class="grid-left">
         <LeftPanel />
+        <MapControls />
       </div>
 
-      <!-- Map Canvas (top-right) -->
+      <!-- Map Canvas -->
       <div class="grid-map">
         <MapCanvas />
-      </div>
-
-      <!-- Bottom Toolbar (bottom-right, spans under map) -->
-      <div class="grid-bottom">
-        <ToolOverlay />
       </div>
     </div>
 
     <!-- Floating Overlays -->
-    <ColorPalette />
-    <BrushControl />
     <InitiativeTracker />
   </div>
 </template>
@@ -32,9 +26,7 @@ import { useRoomStore } from '@/stores/room'
 import { useSocket } from '@/composables/useSocket'
 import MapCanvas from '@/components/map/MapCanvas.vue'
 import LeftPanel from '@/components/map/LeftPanel.vue'
-import ToolOverlay from '@/components/map/ToolOverlay.vue'
-import ColorPalette from '@/components/map/ColorPalette.vue'
-import BrushControl from '@/components/map/BrushControl.vue'
+import MapControls from '@/components/map/MapControls.vue'
 import InitiativeTracker from '@/components/map/InitiativeTracker.vue'
 
 const props = defineProps({
@@ -174,8 +166,8 @@ onMounted(async () => {
   width: 100%;
   height: 100%;
   display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: calc(100% - 150px) auto; /* Reserve space for toolbar */
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 1fr;
   gap: 1rem;
   padding: 2rem;
   box-sizing: border-box;
@@ -183,28 +175,22 @@ onMounted(async () => {
 
 .grid-left {
   grid-column: 1;
-  grid-row: 1 / 3;
+  grid-row: 1;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
 }
+
 
 .grid-map {
   grid-column: 2;
   grid-row: 1;
   position: relative;
   overflow: visible; /* Show torn edges */
-  align-self: stretch; /* Fill vertical space */
-  justify-self: stretch; /* Fill horizontal space */
+  min-height: 0; /* Allow shrinking below content size */
   width: 100%;
-  height: 100%; /* Fill grid cell */
-}
-
-.grid-bottom {
-  grid-column: 2;
-  grid-row: 2;
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
+  height: 100%;
 }
 
 @media (max-width: 768px) {

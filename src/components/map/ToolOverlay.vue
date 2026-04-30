@@ -17,24 +17,6 @@
 
         <div class="divider"></div>
 
-        <!-- Tool Options -->
-        <WaxSealButton
-          icon="◯"
-          label="Brush"
-          color="gray"
-          size="medium"
-          @click="toggleBrushControl"
-        />
-        <WaxSealButton
-          icon="🎨"
-          label="Color"
-          color="gray"
-          size="medium"
-          @click="toggleColorPalette"
-        />
-
-        <div class="divider"></div>
-
         <!-- Initiative Tracker -->
         <WaxSealButton
           icon="⚔"
@@ -77,14 +59,6 @@ function toggleDrawTool() {
   }
 }
 
-function toggleBrushControl() {
-  uiStore.toggleBrushControl()
-}
-
-function toggleColorPalette() {
-  uiStore.toggleColorPalette()
-}
-
 function toggleInitiativeTracker() {
   uiStore.toggleInitiativeTracker()
 }
@@ -97,22 +71,25 @@ function toggleInitiativeTracker() {
 
 .tool-buttons {
   display: flex;
-  gap: 1rem;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: stretch;
 }
 
 .divider {
-  width: 2px;
-  height: 40px;
+  width: 100%;
+  height: 2px;
   background: var(--parchment-dark);
-  margin: 0 0.5rem;
+  margin: 0.25rem 0;
 }
 
 .help-text {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  padding: 0 0.5rem;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
 }
 
 .help-line {

@@ -1,33 +1,23 @@
 <template>
-  <Transition name="fade">
-    <div v-if="visible" class="color-palette-overlay">
-      <ParchmentContainer
-        floating
-        width="340px"
-        padding="1.5rem"
-        class="color-palette"
+  <ParchmentContainer
+    width="auto"
+    padding="0.75rem"
+    class="color-palette"
+  >
+    <div class="color-grid">
+      <button
+        v-for="color in colors"
+        :key="color.value"
+        class="color-button"
+        :class="{ active: isActive(color.value) }"
+        :style="{ backgroundColor: color.hex }"
+        :title="color.label"
+        @click="selectColor(color.value)"
       >
-        <div class="palette-header">
-          <h3 class="palette-title">{{ title }}</h3>
-          <button class="close-button" @click="close">✕</button>
-        </div>
-
-        <div class="color-grid">
-          <button
-            v-for="color in colors"
-            :key="color.value"
-            class="color-button"
-            :class="{ active: isActive(color.value) }"
-            :style="{ backgroundColor: color.hex }"
-            :title="color.label"
-            @click="selectColor(color.value)"
-          >
-            <span v-if="isActive(color.value)" class="check-mark">✓</span>
-          </button>
-        </div>
-      </ParchmentContainer>
+        <span v-if="isActive(color.value)" class="check-mark">✓</span>
+      </button>
     </div>
-  </Transition>
+  </ParchmentContainer>
 </template>
 
 <script setup>
@@ -37,9 +27,7 @@ import { useRoomStore } from '@/stores/room'
 import ParchmentContainer from '@/components/ui/ParchmentContainer.vue'
 
 const uiStore = useUiStore()
-const roomStore = useRoomStore()
 
-const visible = computed(() => uiStore.showColorPalette)
 const activeTool = computed(() => uiStore.activeTool)
 
 const title = computed(() => {
@@ -47,7 +35,6 @@ const title = computed(() => {
 })
 
 const currentColor = computed(() => {
-  // Always use marker color (applies to both markers and drawings)
   return uiStore.currentMarkerColor
 })
 
@@ -67,68 +54,29 @@ function isActive(colorValue) {
 }
 
 function selectColor(colorValue) {
-  // Set marker color (used for both markers and drawings)
   uiStore.setMarkerColor(colorValue)
-}
-
-function close() {
-  uiStore.toggleColorPalette()
 }
 </script>
 
 <style scoped>
-.color-palette-overlay {
-  position: fixed;
-  bottom: 10rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 200;
+.color-palette {
+  display: inline-block;
 }
 
 .color-palette {
   box-sizing: border-box;
 }
 
-.palette-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-}
-
-.palette-title {
-  font-family: var(--font-heading);
-  font-size: 1.125rem;
-  color: var(--ink-black);
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.close-button {
-  background: none;
-  border: none;
-  font-size: 1.25rem;
-  color: var(--ink-faded);
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  transition: color 0.2s;
-}
-
-.close-button:hover {
-  color: var(--accent-red);
-}
-
 .color-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .color-button {
-  width: 60px;
-  height: 60px;
-  border: 3px solid var(--parchment-dark);
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--parchment-dark);
   border-radius: 50%;
   cursor: pointer;
   position: relative;
@@ -136,6 +84,7 @@ function close() {
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.2),
     inset 0 1px 2px rgba(255, 255, 255, 0.3);
+  flex-shrink: 0;
 }
 
 .color-button:hover {

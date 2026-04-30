@@ -1,6 +1,6 @@
 <template>
   <ParchmentContainer
-    width="280px"
+    width="240px"
     padding="1.5rem"
     class="left-panel"
   >
@@ -17,13 +17,40 @@
     <div v-if="isOwner" class="owner-controls">
       <div class="control-section">
         <h3 class="section-title">Actions</h3>
-        <WaxSealButton
-          icon="↻"
-          label="Reset All"
-          color="red"
-          size="medium"
-          @click="handleReset"
-        />
+        <div class="button-group">
+          <WaxSealButton
+            :active="activeTool === 'draw'"
+            icon="✎"
+            label="Draw"
+            color="red"
+            size="medium"
+            @click="toggleDrawTool"
+          />
+          <WaxSealButton
+            icon="⚔"
+            label="Initiative"
+            color="green"
+            size="medium"
+            @click="toggleInitiativeTracker"
+          />
+          <WaxSealButton
+            icon="↻"
+            label="Reset All"
+            color="red"
+            size="medium"
+            @click="handleReset"
+          />
+        </div>
+
+        <!-- Help Text -->
+        <div class="help-text">
+          <span v-if="activeTool === 'draw'" class="help-line">Drag: Draw Path</span>
+          <template v-else>
+            <span class="help-line">Click: Reveal Fog</span>
+            <span class="help-line">Double-Click: Add Marker</span>
+            <span class="help-line">Right-Click: Add Fog</span>
+          </template>
+        </div>
       </div>
     </div>
 
@@ -39,17 +66,32 @@
 import { computed } from 'vue'
 import { useRoomStore } from '@/stores/room'
 import { useSocketStore } from '@/stores/socket'
+import { useUiStore } from '@/stores/ui'
 import ParchmentContainer from '@/components/ui/ParchmentContainer.vue'
 import WaxSealButton from '@/components/ui/WaxSealButton.vue'
 
 const roomStore = useRoomStore()
 const socketStore = useSocketStore()
+const uiStore = useUiStore()
 
 const roomId = computed(() => roomStore.roomId)
 const isOwner = computed(() => roomStore.isOwner)
 const isConnected = computed(() => socketStore.isConnected)
+const activeTool = computed(() => uiStore.activeTool)
 
 const roleClass = computed(() => isOwner.value ? 'role-owner' : 'role-viewer')
+
+function toggleDrawTool() {
+  if (activeTool.value === 'draw') {
+    uiStore.setActiveTool(null)
+  } else {
+    uiStore.setActiveTool('draw')
+  }
+}
+
+function toggleInitiativeTracker() {
+  uiStore.toggleInitiativeTracker()
+}
 
 function handleReset() {
   if (confirm('Reset all markers, fog, and drawings? This cannot be undone.')) {
@@ -137,6 +179,22 @@ function handleReset() {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.help-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.help-line {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--ink-faded);
 }
 
 .connection-status {
