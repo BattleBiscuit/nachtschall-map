@@ -93,6 +93,7 @@
       :markerName="editingMarkerName"
       @confirm="handleMarkerNameConfirm"
       @cancel="editingMarkerId = null"
+      @remove="handleMarkerRemove"
     />
   </div>
 </template>
@@ -429,6 +430,13 @@ function handleMarkerNameConfirm(newName) {
       id: editingMarkerId.value,
       name: newName
     })
+  }
+  editingMarkerId.value = null
+}
+
+function handleMarkerRemove() {
+  if (editingMarkerId.value) {
+    handleRemoveMarker(editingMarkerId.value)
   }
   editingMarkerId.value = null
 }

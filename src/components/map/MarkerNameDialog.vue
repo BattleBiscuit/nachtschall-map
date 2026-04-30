@@ -16,6 +16,10 @@
             />
           </div>
           <div class="dialog-actions">
+            <WaxSealButton @click="handleRemove" color="red" size="small" icon="✕">
+              Remove
+            </WaxSealButton>
+            <div class="spacer"></div>
             <WaxSealButton @click="handleCancel" color="gray" size="small">
               Cancel
             </WaxSealButton>
@@ -40,7 +44,7 @@ const props = defineProps({
   markerName: String
 })
 
-const emit = defineEmits(['confirm', 'cancel'])
+const emit = defineEmits(['confirm', 'cancel', 'remove'])
 
 const localName = ref('')
 
@@ -70,6 +74,12 @@ function handleConfirm() {
 
 function handleCancel() {
   emit('cancel')
+}
+
+function handleRemove() {
+  if (confirm('Delete this marker?')) {
+    emit('remove')
+  }
 }
 </script>
 
@@ -120,6 +130,11 @@ function handleCancel() {
   display: flex;
   gap: 1rem;
   justify-content: flex-end;
+  align-items: center;
+}
+
+.spacer {
+  flex: 1;
 }
 
 .fade-enter-active,
