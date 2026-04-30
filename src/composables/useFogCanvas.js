@@ -26,7 +26,7 @@ export function useFogCanvas(canvasRef) {
 
   const fogOptimizer = new FogOptimizer()
   let shapesSinceOptimization = 0
-  const OPTIMIZE_THRESHOLD = 200
+  const OPTIMIZE_THRESHOLD = 50
 
   async function initFogCanvas() {
     if (!canvasRef.value) {

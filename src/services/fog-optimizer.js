@@ -12,7 +12,7 @@ export class FogOptimizer {
    * Merge overlapping circles into larger circles
    */
   optimizeShapes(shapes) {
-    if (shapes.length < 100) return shapes
+    if (shapes.length < 20) return shapes
 
     const revealShapes = shapes.filter(s => s.type === 'reveal')
     const fogShapes = shapes.filter(s => s.type === 'fog')
