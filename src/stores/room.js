@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia'
+import { idb } from '@/services/indexed-db'
 
 export const useRoomStore = defineStore('room', {
   state: () => ({
@@ -44,6 +45,7 @@ export const useRoomStore = defineStore('room', {
         ...marker,
         id: marker.id || `marker-${++this.markerIdCounter}`
       })
+      this.saveToIndexedDB()
     },
 
     updateMarker(id, updates) {
@@ -51,17 +53,20 @@ export const useRoomStore = defineStore('room', {
       if (index !== -1) {
         this.markers[index] = { ...this.markers[index], ...updates }
       }
+      this.saveToIndexedDB()
     },
 
     removeMarker(id) {
       this.markers = this.markers.filter(m => m.id !== id)
       // Also remove from initiative
       delete this.markerRoundAssignments[id]
+      this.saveToIndexedDB()
     },
 
     // Fog actions
     addRevealShape(shape) {
       this.revealShapes.push(shape)
+      this.saveToIndexedDB()
     },
 
     // Drawing actions
@@ -70,6 +75,7 @@ export const useRoomStore = defineStore('room', {
         ...drawing,
         id: drawing.id || `drawing-${++this.drawingIdCounter}`
       })
+      this.saveToIndexedDB()
     },
 
     // Initiative actions
@@ -83,6 +89,7 @@ export const useRoomStore = defineStore('room', {
           ...updates.assignments
         }
       }
+      this.saveToIndexedDB()
     },
 
     // Reset all state
@@ -95,6 +102,7 @@ export const useRoomStore = defineStore('room', {
 
       // Trigger fog canvas to rebuild (empty mask)
       this.fogRebuildTrigger++
+      this.saveToIndexedDB()
     },
 
     // Apply action from socket (from other users or server)
@@ -148,24 +156,70 @@ export const useRoomStore = defineStore('room', {
       this.drawingIdCounter = 0
       this.initiativeRounds = 3
       this.markerRoundAssignments = {}
+    },
+
+    // IndexedDB persistence for large data
+    saveToIndexedDB() {
+      if (this._saveTimeout) clearTimeout(this._saveTimeout)
+
+      this._saveTimeout = setTimeout(async () => {
+        if (!this.roomId) return
+
+        const data = {
+          roomId: this.roomId,
+          mapUrl: this.mapUrl,
+          markers: this.markers,
+          markerIdCounter: this.markerIdCounter,
+          revealShapes: this.revealShapes,
+          drawings: this.drawings,
+          drawingIdCounter: this.drawingIdCounter,
+          initiativeRounds: this.initiativeRounds,
+          markerRoundAssignments: this.markerRoundAssignments,
+          timestamp: Date.now()
+        }
+
+        try {
+          await idb.saveRoom(data)
+        } catch (error) {
+          console.error('[room] IndexedDB save failed:', error)
+        }
+      }, 1000) // Debounce: max once per second
+    },
+
+    async loadFromIndexedDB(roomId) {
+      try {
+        const data = await idb.loadRoom(roomId)
+
+        if (data) {
+          this.mapUrl = data.mapUrl || null
+          this.markers = data.markers || []
+          this.markerIdCounter = data.markerIdCounter || 0
+          this.revealShapes = data.revealShapes || []
+          this.drawings = data.drawings || []
+          this.drawingIdCounter = data.drawingIdCounter || 0
+          this.initiativeRounds = data.initiativeRounds || 3
+          this.markerRoundAssignments = data.markerRoundAssignments || {}
+
+          console.log(`[room] Loaded from IndexedDB: ${data.revealShapes.length} fog, ${data.markers.length} markers`)
+          return true
+        }
+
+        return false
+      } catch (error) {
+        console.error('[room] IndexedDB load failed:', error)
+        return false
+      }
     }
   },
 
   persist: {
-    key: 'nachtschall-room',
+    key: 'nachtschall-room-meta',
     storage: localStorage,
     paths: [
       'roomId',
       'isOwner',
-      'mapUrl',
-      'mapAspectRatio',
-      'markers',
-      'markerIdCounter',
-      'revealShapes',
-      'drawings',
-      'drawingIdCounter',
-      'initiativeRounds',
-      'markerRoundAssignments'
+      'mapAspectRatio'
     ]
+    // Large data (markers, revealShapes, drawings) moved to IndexedDB
   }
 })

@@ -82,6 +82,9 @@ onMounted(async () => {
       throw new Error('Socket connection timeout')
     }
 
+    // Try loading from IndexedDB cache first
+    await roomStore.loadFromIndexedDB(props.code)
+
     // Join the room via WebSocket
     const response = await joinRoom(props.code)
 

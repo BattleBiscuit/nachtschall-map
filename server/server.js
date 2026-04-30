@@ -190,6 +190,17 @@ function makeRoomId() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+// Simple hash function for snapshot validation
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return hash.toString(36);
+}
+
 // ── Socket.IO Event Handlers ─────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
@@ -243,7 +254,19 @@ io.on('connection', (socket) => {
       console.log(`[ws] ${socket.id} joining as viewer`);
     }
 
-    if (cb) cb({ ok: true, role, snapshot: room.snapshot });
+    // Calculate snapshot hash for cache validation
+    const snapshotData = {
+      mapUrl: room.snapshot.mapUrl,
+      mapAspectRatio: room.snapshot.mapAspectRatio,
+      markers: room.snapshot.markers,
+      revealShapes: room.snapshot.revealShapes,
+      drawings: room.snapshot.drawings,
+      initiativeRounds: room.snapshot.initiativeRounds,
+      initiativeAssignments: room.snapshot.initiativeAssignments
+    };
+    const snapshotHash = simpleHash(JSON.stringify(snapshotData));
+
+    if (cb) cb({ ok: true, role, snapshot: room.snapshot, snapshotHash });
 
     // Notify owner about new participant (only if this is a viewer joining)
     if (role === 'viewer') {
@@ -303,6 +326,11 @@ io.on('connection', (socket) => {
       case 'drawingAdd':
         room.snapshot.drawings = room.snapshot.drawings || [];
         room.snapshot.drawings.push(action.data);
+        break;
+      case 'fogOptimize':
+        // Replace entire revealShapes with optimized version
+        room.snapshot.revealShapes = action.data.shapes;
+        console.log(`[action] Fog optimized to ${action.data.shapes.length} shapes`);
         break;
       case 'reset':
         room.snapshot.revealShapes = [];

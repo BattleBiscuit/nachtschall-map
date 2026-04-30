@@ -6,6 +6,7 @@
 
 import { onMounted, onUnmounted, watch } from 'vue'
 import { FogRenderer } from '@/services/fog-renderer'
+import { FogOptimizer } from '@/services/fog-optimizer'
 import { useRoomStore } from '@/stores/room'
 import { useSocketStore } from '@/stores/socket'
 import { useUiStore } from '@/stores/ui'
@@ -22,6 +23,10 @@ export function useFogCanvas(canvasRef) {
   let minShapeDistance = 40 // Minimum viewBox units between fog shapes (optimized for performance/quality)
   let lastRenderTime = 0
   let minRenderInterval = 50 // Minimum ms between renders
+
+  const fogOptimizer = new FogOptimizer()
+  let shapesSinceOptimization = 0
+  const OPTIMIZE_THRESHOLD = 200
 
   async function initFogCanvas() {
     if (!canvasRef.value) {
@@ -93,8 +98,38 @@ export function useFogCanvas(canvasRef) {
       })
     })
 
+    shapesSinceOptimization += pendingShapes.length
+
+    // Auto-optimize at threshold
+    if (shapesSinceOptimization >= OPTIMIZE_THRESHOLD) {
+      optimizeFogShapes()
+      shapesSinceOptimization = 0
+    }
+
     pendingShapes = []
     lastShapePos = { x: -1, y: -1 }
+  }
+
+  function optimizeFogShapes() {
+    const currentShapes = roomStore.revealShapes
+    const optimized = fogOptimizer.optimizeShapes(currentShapes)
+
+    if (optimized.length < currentShapes.length) {
+      console.log(`[useFogCanvas] Optimizing: ${currentShapes.length} → ${optimized.length}`)
+
+      // Replace with optimized shapes
+      roomStore.revealShapes = optimized
+
+      // Rebuild fog mask
+      renderer.setRevealShapes(optimized)
+      renderer.render()
+
+      // Sync to server
+      socketStore.emitAction(roomStore.roomId, {
+        type: 'fogOptimize',
+        data: { shapes: optimized }
+      })
+    }
   }
 
   function drawReveal(x, y, isDragging = false) {
@@ -215,6 +250,7 @@ export function useFogCanvas(canvasRef) {
     renderFog,
     drawReveal,
     drawFog,
-    commitPendingShapes
+    commitPendingShapes,
+    optimizeFogShapes
   }
 }
