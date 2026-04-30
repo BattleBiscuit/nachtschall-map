@@ -12,7 +12,7 @@
       <PokerChip
         :color="marker.color"
         :label="marker.name ? marker.name.charAt(0).toUpperCase() : ''"
-        size="medium"
+        size="small"
       />
       <div v-if="marker.name" class="marker-label">
         {{ marker.name }}
@@ -33,7 +33,7 @@ const props = defineProps({
   },
   size: {
     type: Number,
-    default: 48
+    default: 24
   }
 })
 
