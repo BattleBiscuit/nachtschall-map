@@ -3,8 +3,8 @@
     <ParchmentContainer
       v-if="visible"
       class="initiative-tracker"
-      width="280px"
-      padding="1.5rem"
+      width="200px"
+      padding="1rem"
     >
       <div class="tracker-header">
         <h3 class="tracker-title">Initiative</h3>
@@ -33,13 +33,13 @@
                   class="marker-token"
                   draggable="true"
                   @dragstart="handleDragStart($event, marker)"
+                  :title="marker.name || 'Unnamed marker'"
                 >
                   <PokerChip
                     :color="marker.color"
                     :label="marker.name ? marker.name.charAt(0).toUpperCase() : ''"
                     size="small"
                   />
-                  <span v-if="marker.name" class="marker-name">{{ marker.name }}</span>
                 </div>
               </div>
             </div>
@@ -58,13 +58,13 @@
                   class="marker-token"
                   draggable="true"
                   @dragstart="handleDragStart($event, marker)"
+                  :title="marker.name || 'Unnamed marker'"
                 >
                   <PokerChip
                     :color="marker.color"
                     :label="marker.name ? marker.name.charAt(0).toUpperCase() : ''"
                     size="small"
                   />
-                  <span v-if="marker.name" class="marker-name">{{ marker.name }}</span>
                 </div>
               </div>
             </div>
@@ -223,7 +223,7 @@ function close() {
 .initiative-tracker {
   display: flex;
   flex-direction: column;
-  max-height: 100%;
+  height: 100%;
   overflow: hidden;
 }
 
@@ -231,12 +231,12 @@ function close() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .tracker-title {
   font-family: var(--font-heading);
-  font-size: 1.5rem;
+  font-size: 1.125rem;
   color: var(--ink-black);
   margin: 0;
 }
@@ -258,8 +258,8 @@ function close() {
 .tracker-body {
   flex: 1;
   overflow-y: auto;
-  margin-bottom: 1rem;
-  min-height: 200px;
+  margin-bottom: 0.5rem;
+  min-height: 0;
 }
 
 .empty-state {
@@ -276,7 +276,7 @@ function close() {
 .rounds-container {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.5rem;
   overflow-y: auto;
 }
 
@@ -284,7 +284,7 @@ function close() {
   background: rgba(255, 255, 255, 0.3);
   border: 2px solid var(--parchment-dark);
   border-radius: 8px;
-  padding: 0.75rem;
+  padding: 0.5rem;
 }
 
 .round-section.unassigned {
@@ -293,11 +293,11 @@ function close() {
 
 .round-header {
   font-family: var(--font-heading);
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: var(--ink-black);
   text-align: center;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.5rem;
+  margin-bottom: 0.375rem;
+  padding-bottom: 0.25rem;
   border-bottom: 1px solid var(--parchment-dark);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -305,45 +305,26 @@ function close() {
 
 .round-slots {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  min-height: 40px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-height: 30px;
 }
 
 .marker-token {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.5);
-  border-radius: 6px;
   cursor: move;
-  transition: all 0.2s;
+  transition: opacity 0.2s;
 }
 
 .marker-token:hover {
-  background: rgba(255, 255, 255, 0.8);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.marker-name {
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  color: var(--ink-black);
-  text-align: center;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  opacity: 0.7;
 }
 
 .tracker-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.375rem;
   flex-wrap: wrap;
-  padding-top: 1rem;
+  padding-top: 0.5rem;
   border-top: 2px solid var(--parchment-dark);
 }
 
