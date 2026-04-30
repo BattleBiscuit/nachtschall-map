@@ -65,7 +65,7 @@ This ensures future sessions have accurate, current information! 📝
 **Tech Stack:**
 - **Frontend**: Vue 3 (Composition API), Pinia, Vue Router, Vite
 - **Real-time**: Socket.IO (WebSocket)
-- **Visualization**: D3.js v7 (pan/zoom), Canvas 2D (fog rendering)
+- **Visualization**: D3.js v7 (pan/zoom), SVG (map + fog rendering)
 - **Backend**: Node.js, Express, Socket.IO Server, Redis
 - **Deployment**: Docker, docker-compose
 
@@ -140,15 +140,14 @@ nachtschall-map/
 │   │
 │   ├── composables/               # Reusable logic
 │   │   ├── useSocket.js           # Socket integration with room store
-│   │   ├── useCoordinates.js      # Normalize/denormalize coords
-│   │   ├── useFogCanvas.js        # Fog rendering integration
 │   │   ├── useD3Map.js            # D3 pan/zoom setup
 │   │   └── useTheme.js            # Medieval theme (torn edges, colors)
+│   │   # ⚠️ REMOVED: useCoordinates.js, useFogCanvas.js (2026-04-30)
 │   │
 │   ├── services/                  # Business logic (pure JS, no Vue)
-│   │   ├── fog-renderer.js        # Canvas fog system with mask compositing
-│   │   ├── marker-renderer.js     # SVG marker rendering (future)
-│   │   └── coordinate-system.js   # Coordinate transformations
+│   │   # ⚠️ REMOVED: fog-renderer.js, coordinate-system.js (2026-04-30)
+│   │   # Fog is now pure SVG in MapCanvas.vue
+│   │   # Coordinates are viewBox-native (no conversion needed)
 │   │
 │   ├── views/                     # Page components
 │   │   ├── LobbyView.vue          # Room creation/joining
@@ -206,77 +205,117 @@ nachtschall-map/
 
 ## Key Concepts
 
-### 1. Coordinate System
+### 1. Coordinate System ⚠️ UPDATED 2026-04-30
 
-**Normalized Coordinates (0-1 range):**
-- All positions stored as `nx` (0-1) and `ny` (0-1)
-- Independent of zoom level or map dimensions
-- Converted to pixels on render via `denormalize(nx, ny)`
+**Fixed SVG viewBox Coordinates:**
+- **SVG viewBox**: Dynamic based on aspect ratio: `0 0 1000 ${1000/aspectRatio}`
+  - Width always 1000
+  - Height calculated from map aspect ratio (e.g., 16:9 map = height ~562)
+- **All positions stored as viewBox coordinates** (`x`, `y` in 0-1000 range for width)
+- **No normalization needed** - coordinates are viewport-independent by design
+- **D3 transforms the entire SVG group** - fog, markers, drawings all move together
 
-**Composable:**
+**How it works:**
 ```javascript
-import { useCoordinates } from '@/composables/useCoordinates'
+// Get mouse position in viewBox space (already transformed by D3)
+const [x, y] = d3.pointer(event, svgElement.value)
 
-const { normalize, denormalize } = useCoordinates()
-
-// Click at pixel (500, 300) on a 1000x600 map
-const { nx, ny } = normalize(500, 300)  // { nx: 0.5, ny: 0.5 }
-
-// Render marker at normalized position
-const { x, y } = denormalize(0.5, 0.5)  // { x: 500, y: 300 }
+// Use directly - no conversion needed
+const marker = { id, x, y, color, name }
+roomStore.addMarker(marker)
 ```
 
-**Why:** Markers stay in the same relative position regardless of zoom/pan.
+**Image rendering:**
+```vue
+<!-- Image maintains aspect ratio within viewBox -->
+<image
+  :href="mapImageDataUrl"
+  x="0"
+  y="0"
+  :width="1000"
+  :height="1000 / mapAspectRatio"
+  preserveAspectRatio="xMidYMid meet"
+/>
+```
+
+**Why:** 
+- Single coordinate space for everything (SVG viewBox)
+- No viewport-dependent pixel conversions
+- Automatic multi-client sync (same viewBox coords = same visual position)
+- D3 zoom/pan transforms everything together
+
+**⚠️ DEPRECATED:** `coordinate-system.js` and `useCoordinates.js` were removed. No longer use `nx`/`ny` or `normalize()`/`denormalize()`.
 
 ---
 
-### 2. Fog-of-War System
+### 2. Fog-of-War System ⚠️ COMPLETELY REWRITTEN 2026-04-30
 
-**Architecture:**
-- **3 Canvas Layers**: texture (parchment), mask (shapes), final (composite)
-- **Mask Compositing**: `destination-in` keeps fog where mask is opaque
-- **Torn Edges**: 30-40 point irregular polygons for authentic parchment look
+**NEW Architecture (SVG-based, not Canvas):**
+- **Single SVG `<path>` element** with holes cut out for reveals
+- **`fill-rule="evenodd"`** makes circles subtract from rectangle
+- **Inside transformed `<g>` group** - moves perfectly with D3 zoom/pan
+- **No manual transform synchronization** needed
 
-**Service: `fog-renderer.js`**
-```javascript
-class FogRenderer {
-  init(mapImageDataUrl, aspectRatio)           // Load map, setup canvases
-  addRevealShape(x, y, radius)                 // Draw reveal to mask
-  addFogShape(x, y, radius)                    // Draw fog to mask
-  setRevealShapes(shapes)                      // Rebuild mask from array
-  render()                                     // Composite and display
-  setZoomTransform(transform)                  // Update D3 transform
-}
+**How it works:**
+```vue
+<!-- Computed fog path with holes -->
+<path
+  :d="fogPath"
+  fill="#e8d7b8"
+  fill-rule="evenodd"
+  opacity="0.95"
+/>
 ```
 
-**Composable: `useFogCanvas.js`**
-- Wraps FogRenderer for Vue reactivity
-- Watches `roomStore.lastReceivedFogShape` to apply incoming shapes
-- Watches `roomStore.fogRebuildTrigger` to rebuild on reset/undo
-- Throttles renders to 20fps during drag
+```javascript
+// Build path: outer rectangle + circle holes
+const fogPath = computed(() => {
+  let path = 'M 0 0 L 1000 0 L 1000 1000 L 0 1000 Z'  // Outer rect
+  
+  revealShapes.value.forEach(shape => {
+    if (shape.type === 'reveal') {
+      // Add circle as hole using arc commands
+      const { x, y, radius } = shape
+      path += ` M ${x + radius} ${y}`
+      path += ` A ${radius} ${radius} 0 1 0 ${x - radius} ${y}`
+      path += ` A ${radius} ${radius} 0 1 0 ${x + radius} ${y} Z`
+    }
+  })
+  
+  return path
+})
+```
 
 **Critical Pattern:**
 ```javascript
-// Local client draws shape (immediate visual feedback)
-renderer.addRevealShape(x, y, radius)
-
-// Add to store (for persistence)
-roomStore.addRevealShape({ type: 'reveal', x, y, radius })
-
-// Emit to server (for sync)
-socketStore.emitAction(roomId, {
-  type: 'reveal',
-  data: { type: 'reveal', x, y, radius }
-})
-
-// Other clients receive via applyAction → triggers lastReceivedFogShape
-// → useFogCanvas watcher draws to their mask
+// Add shape to store (triggers fogPath recomputation)
+function drawReveal(x, y, isDragging = false) {
+  const shape = { type: 'reveal', x, y, radius: revealRadius.value }
+  roomStore.addRevealShape(shape)
+  
+  if (!isDragging) {
+    // Emit to server on mouse up
+    socketStore.emitAction(roomId, {
+      type: 'reveal',
+      data: shape
+    })
+  }
+}
 ```
 
-**Performance:**
-- Min 20px distance between shapes (throttling)
-- Batch commit on mouse release (not during drag)
-- 20fps render throttle via requestAnimationFrame
+**Performance Benefits:**
+- **One DOM element** instead of thousands of circles in a mask
+- **Reactive path update** - Vue only updates `d` attribute
+- **Automatic D3 transform** - no manual canvas synchronization
+- **Min 40px distance** between shapes (reduced shape count)
+
+**Why the change:**
+- Canvas fog required complex transform synchronization with D3
+- SVG fog automatically moves with pan/zoom (inside transformed group)
+- Simpler code, fewer edge cases
+- Still performant with thousands of shapes (single path element)
+
+**⚠️ DEPRECATED:** `fog-renderer.js` and `useFogCanvas.js` removed. Fog is now pure SVG in MapCanvas.vue.
 
 ---
 
@@ -440,10 +479,10 @@ watch(() => roomStore.lastReceivedFogShape, (shape) => {
   mapAspectRatio: number,
   
   // Map state (persisted to localStorage)
-  markers: [{ id, nx, ny, color, name }],
+  markers: [{ id, x, y, color, name }],  // ⚠️ CHANGED: x, y (not nx, ny)
   markerIdCounter: number,
   revealShapes: [{ type, x, y, radius }],
-  drawings: [{ id, pathData, color, strokeWidth, points }],
+  drawings: [{ id, pathData, color, strokeWidth }],  // ⚠️ CHANGED: removed points array
   drawingIdCounter: number,
   
   // Initiative
@@ -971,11 +1010,113 @@ import { useUiStore } from '@/stores/ui'
 
 // Composables
 import { useSocket } from '@/composables/useSocket'
-import { useCoordinates } from '@/composables/useCoordinates'
-import { useFogCanvas } from '@/composables/useFogCanvas'
 import { useD3Map } from '@/composables/useD3Map'
 import { useTornEdges } from '@/composables/useTheme'
+// ⚠️ REMOVED 2026-04-30: useCoordinates, useFogCanvas
 ```
+
+---
+
+## Recent Major Changes (2026-04-30)
+
+### Coordinate System Refactor
+
+**What Changed:**
+- Removed normalized coordinate system (`nx`, `ny` in 0-1 range)
+- Now use SVG viewBox coordinates directly (`x`, `y` in 0-1000 range for width)
+- Deleted `coordinate-system.js` and `useCoordinates.js`
+- SVG viewBox is dynamic: `0 0 1000 ${1000/aspectRatio}`
+
+**Why:**
+- Eliminates viewport-dependent pixel conversions
+- Single coordinate space for all elements (map, markers, fog, drawings)
+- Automatic multi-client synchronization (same viewBox = same position)
+- D3 zoom transforms everything together (no manual sync needed)
+
+**Impact:**
+- All marker positions changed from `{ nx, ny }` to `{ x, y }`
+- Mouse events use `d3.pointer(event, svgElement)` for viewBox coords
+- No `normalize()`/`denormalize()` calls needed anywhere
+
+### Fog System Rewrite (Canvas → SVG)
+
+**What Changed:**
+- Removed canvas-based fog rendering (`fog-renderer.js`, `useFogCanvas.js`)
+- Now use single SVG `<path>` element with `fill-rule="evenodd"`
+- Fog path computed reactively from `revealShapes` array
+- Fog is inside D3-transformed `<g>` group
+
+**Why:**
+- Canvas required complex transform synchronization with D3
+- SVG fog automatically moves with pan/zoom (same transform as map)
+- Simpler code (no manual canvas transforms)
+- Still performant (one path element vs thousands of circle elements)
+
+**How it works:**
+```vue
+<path
+  :d="fogPath"
+  fill="#e8d7b8"
+  fill-rule="evenodd"
+  opacity="0.95"
+/>
+```
+
+```javascript
+const fogPath = computed(() => {
+  let path = 'M 0 0 L 1000 0 L 1000 1000 L 0 1000 Z'  // Outer rect
+  
+  revealShapes.value.forEach(shape => {
+    if (shape.type === 'reveal') {
+      const { x, y, radius } = shape
+      // Circle holes using SVG arc commands
+      path += ` M ${x + radius} ${y}`
+      path += ` A ${radius} ${radius} 0 1 0 ${x - radius} ${y}`
+      path += ` A ${radius} ${radius} 0 1 0 ${x + radius} ${y} Z`
+    }
+  })
+  
+  return path
+})
+```
+
+**Impact:**
+- Fog rendering is now in `MapCanvas.vue` (not separate service)
+- No `initFogCanvas()`, `renderFog()` calls needed
+- Fog shapes use viewBox coordinates (same as markers)
+- Fog automatically zooms/pans with map (no extra code)
+
+### Container and Layout Improvements
+
+**What Changed:**
+- Map container now fills grid cell properly (`height: 100%`)
+- SVG uses `preserveAspectRatio="xMidYMid meet"` to fit container
+- Map image maintains aspect ratio within dynamic viewBox
+- Mouse events captured on container div (not SVG) for full-area interaction
+
+**Why:**
+- SVG viewBox was smaller than container (aspect ratio mismatch)
+- Clicks outside image area weren't registering
+- Map should fill available space while maintaining proportions
+
+**Result:**
+- Map fills grid cell height/width appropriately
+- Fog reveals work anywhere in container (not just on image)
+- Zoom/pan feel natural and responsive
+
+### Drawing System Optimization
+
+**What Changed:**
+- Removed redundant `points` array from drawing objects
+- Only store `pathData` (SVG path string)
+
+**Why:**
+- Points array duplicated data (50% storage reduction)
+- Path data is sufficient for rendering and editing
+
+**Impact:**
+- Drawings now: `{ id, pathData, color, strokeWidth }`
+- No `points` property in server or client
 
 ---
 
