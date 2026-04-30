@@ -1,0 +1,29 @@
+:root {
+  /* Colors - Parchment */
+  --parchment-light: #f4e8d0;
+  --parchment-default: #e8d7b8;
+  --parchment-dark: #c9b79c;
+
+  /* Colors - Leather */
+  --leather-dark: #3d2f1f;
+  --leather-darker: #2a1f15;
+
+  /* Colors - Ink */
+  --ink-black: #1a1410;
+  --ink-faded: #4a3829;
+
+  /* Colors - Accents */
+  --accent-red: #8b1e1e;
+  --accent-gray: #5a5552;
+  --accent-gold: #c9a961;
+
+  /* Fonts */
+  --font-display: 'MedievalSharp', cursive;
+  --font-heading: 'Cinzel', serif;
+  --font-body: 'IM Fell English', serif;
+
+  /* Shadows */
+  --shadow-deep: 0 8px 16px rgba(0, 0, 0, 0.3);
+  --shadow-embossed: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-soft: 0 4px 8px rgba(0, 0, 0, 0.2);
+}

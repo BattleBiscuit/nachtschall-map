@@ -1,8 +1,12 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
-const { createClient } = require('redis');
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { createClient } from 'redis';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ── Express & Socket.IO Setup ─────────────────────────────────────────────────
 
@@ -33,16 +37,15 @@ const REDIS_URL = process.env.REDIS_URL || 'redis://redis:6379';
 
 // ── HTTP Routes ───────────────────────────────────────────────────────────────
 
-// Serve static files from public directory (CSS, JS, images, assets)
-const publicDir = path.join(__dirname, '..', 'public');
-app.use(express.static(publicDir));
+// Serve Vue build output from dist directory
+const distDir = path.join(__dirname, '..', 'dist');
+app.use(express.static(distDir));
 
-// Route handler for /room/:code - serves map viewer page
-app.get('/room/:code', (req, res) => {
-  res.sendFile(path.join(publicDir, 'map.html'));
+// Fallback to index.html for SPA routing (Vue Router)
+// This must come after all other routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distDir, 'index.html'));
 });
-
-// Root path serves lobby (index.html is served by static middleware)
 
 // ── Redis Connection & Helpers ───────────────────────────────────────────────
 
