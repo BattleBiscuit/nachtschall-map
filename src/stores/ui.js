@@ -19,8 +19,7 @@ export const useUiStore = defineStore('ui', {
     initialZoom: 1,
     minZoom: 0.5,
     maxZoom: 3,
-    currentZoomTransform: null,
-    mapDimensions: { x: 0, y: 0, width: 0, height: 0 }
+    currentZoomTransform: null
   }),
 
   actions: {
@@ -57,10 +56,6 @@ export const useUiStore = defineStore('ui', {
 
     setZoomTransform(transform) {
       this.currentZoomTransform = transform
-    },
-
-    setMapDimensions(dims) {
-      this.mapDimensions = dims
     }
   },
 

@@ -195,10 +195,10 @@ onMounted(async () => {
   grid-row: 1;
   position: relative;
   overflow: visible; /* Show torn edges */
-  align-self: start;
+  align-self: stretch; /* Fill vertical space */
   justify-self: stretch; /* Fill horizontal space */
   width: 100%;
-  max-height: 100%; /* Don't overflow grid cell */
+  height: 100%; /* Fill grid cell */
 }
 
 .grid-bottom {

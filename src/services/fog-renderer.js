@@ -45,22 +45,19 @@ export class FogRenderer {
   }
 
   /**
-   * Resize all canvases to match container
+   * Resize all canvases to match viewBox (fixed 1000x1000)
    */
   resizeCanvases() {
-    const container = this.canvas.parentElement
-    if (!container) return
+    // Use full viewBox dimensions (always 1000x1000 for entire container)
+    const viewBoxWidth = 1000
+    const viewBoxHeight = 1000
 
-    const width = container.clientWidth
-    const height = container.clientHeight
+    // Canvas renders at viewBox resolution
+    this.canvas.width = viewBoxWidth
+    this.canvas.height = viewBoxHeight
 
-
-    // Main canvas matches container
-    this.canvas.width = width
-    this.canvas.height = height
-
-    // Regenerate fog texture with padding (like original)
-    this.generateFogTexture(width, height)
+    // Regenerate fog texture at viewBox resolution
+    this.generateFogTexture(viewBoxWidth, viewBoxHeight)
   }
 
   /**
@@ -186,7 +183,8 @@ export class FogRenderer {
   }
 
   /**
-   * Render the fog of war with zoom transform (like original)
+   * Render the fog of war in viewBox space
+   * CSS handles scaling to fit container
    */
   render() {
     if (!this.isInitialized) {
@@ -194,18 +192,11 @@ export class FogRenderer {
     }
 
     const { width, height } = this.canvas
-    const t = this.currentZoomTransform
-
 
     // Clear main canvas
     this.ctx.clearRect(0, 0, width, height)
-    this.ctx.save()
 
-    // Apply zoom transform (SVG and canvas share coordinate system)
-    this.ctx.translate(t.x, t.y)
-    this.ctx.scale(t.k, t.k)
-
-    // Draw pre-blurred fog texture
+    // Draw fog texture (no transform needed - canvas is in viewBox space)
     this.ctx.globalCompositeOperation = 'source-over'
     this.ctx.drawImage(
       this.textureCanvas,
@@ -225,16 +216,14 @@ export class FogRenderer {
       this.fogTextureDims.h
     )
 
-    this.ctx.restore()
     this.ctx.globalCompositeOperation = 'source-over'
-
   }
 
   /**
-   * Update zoom transform
+   * Update zoom transform (no longer needed with viewBox, but kept for compatibility)
    */
   setZoomTransform(transform) {
-    this.currentZoomTransform = transform
+    // No-op: zoom handled by SVG viewBox and CSS scaling
   }
 
   /**

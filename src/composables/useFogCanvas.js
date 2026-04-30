@@ -19,7 +19,7 @@ export function useFogCanvas(canvasRef) {
   let renderPending = false
   let pendingShapes = [] // Shapes drawn but not yet saved
   let lastShapePos = { x: -1, y: -1 }
-  let minShapeDistance = 20 // Minimum pixels between fog shapes (increased for performance)
+  let minShapeDistance = 40 // Minimum viewBox units between fog shapes (optimized for performance/quality)
   let lastRenderTime = 0
   let minRenderInterval = 50 // Minimum ms between renders
 
@@ -192,13 +192,8 @@ export function useFogCanvas(canvasRef) {
     renderer.render()
   })
 
-  // Watch for zoom changes
-  watch(() => uiStore.currentZoomTransform, (transform) => {
-    if (renderer) {
-      renderer.setZoomTransform(transform)
-      renderer.render()
-    }
-  }, { deep: true })
+  // Note: Zoom watch removed - with fixed viewBox, CSS handles all scaling
+  // No need to re-render fog on zoom changes
 
   onMounted(() => {
     // Don't auto-init here - wait for map to load

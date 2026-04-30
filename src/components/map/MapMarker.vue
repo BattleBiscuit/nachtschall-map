@@ -22,9 +22,8 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref } from 'vue'
 import PokerChip from '@/components/ui/PokerChip.vue'
-import { useCoordinates } from '@/composables/useCoordinates'
 import * as d3 from 'd3'
 
 const props = defineProps({
@@ -40,22 +39,13 @@ const props = defineProps({
 
 const emit = defineEmits(['update', 'remove', 'editName', 'dragStart', 'dragEnd'])
 
-const { denormalize, normalize } = useCoordinates()
-
 const labelHeight = 20
 const isDragging = ref(false)
-const markerElement = ref(null)
 const tempPosition = ref(null) // Temporary position during drag
 
-// Denormalize marker position - use temp position during drag, otherwise use stored position
-const position = computed(() => {
-  if (tempPosition.value) {
-    return denormalize(tempPosition.value.nx, tempPosition.value.ny)
-  }
-  return denormalize(props.marker.nx, props.marker.ny)
-})
-const x = computed(() => position.value.x)
-const y = computed(() => position.value.y)
+// Use viewBox coordinates directly - no conversion needed
+const x = computed(() => tempPosition.value?.x || props.marker.x)
+const y = computed(() => tempPosition.value?.y || props.marker.y)
 
 function handleDragStart(event) {
   // Only drag with left button
@@ -67,11 +57,8 @@ function handleDragStart(event) {
   isDragging.value = false
   let dragStartEmitted = false
 
-  // Get the SVG element and mapGroup for coordinate transformation
+  // Get the SVG element for viewBox coordinate transformation
   const svg = event.target.closest('svg')
-  const mapGroup = svg.querySelector('g')
-
-  const startPos = d3.pointer(event, mapGroup)
 
   function onDragMove(moveEvent) {
     moveEvent.preventDefault()
@@ -85,12 +72,11 @@ function handleDragStart(event) {
 
     isDragging.value = true
 
-    // Get coordinates relative to transformed group
-    const [newX, newY] = d3.pointer(moveEvent, mapGroup)
+    // Get viewBox coordinates from SVG element (not mapGroup which is transformed)
+    const [x, y] = d3.pointer(moveEvent, svg)
 
-    // Normalize coordinates and update temp position for visual feedback
-    const { nx, ny } = normalize(newX, newY)
-    tempPosition.value = { nx, ny }
+    // Store temp position for visual feedback
+    tempPosition.value = { x, y }
   }
 
   function onDragEnd(endEvent) {

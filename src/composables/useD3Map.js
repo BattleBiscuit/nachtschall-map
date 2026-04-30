@@ -44,7 +44,7 @@ export function useD3Map(svgRef, mapGroupRef) {
     // Apply zoom to SVG
     svg.call(zoom)
 
-    // Set initial zoom and position (identity = no transform)
+    // Set initial zoom (identity = scale 1, map fills width)
     svg.call(zoom.transform, d3.zoomIdentity)
 
   }

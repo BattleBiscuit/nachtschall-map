@@ -216,10 +216,10 @@ io.on('connection', (socket) => {
         room.snapshot.markers = room.snapshot.markers || [];
         const markerToUpdate = room.snapshot.markers.find(m => m.id === action.data.id);
         if (markerToUpdate) {
-          // Update existing marker
-          if (typeof action.data.nx === 'number') {
-            markerToUpdate.nx = action.data.nx;
-            markerToUpdate.ny = action.data.ny;
+          // Update existing marker (using viewBox coordinates x/y)
+          if (typeof action.data.x === 'number') {
+            markerToUpdate.x = action.data.x;
+            markerToUpdate.y = action.data.y;
           }
           if (action.data.color !== undefined) markerToUpdate.color = action.data.color;
           if (action.data.name !== undefined) markerToUpdate.name = action.data.name;
