@@ -48,6 +48,17 @@ const router = useRouter()
 const roomStore = useRoomStore()
 const { joinRoom, isConnected } = useSocket()
 
+// Simple hash function for snapshot validation
+function simpleHash(str) {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32bit integer
+  }
+  return hash.toString(36)
+}
+
 onMounted(async () => {
   try {
     // Wait for socket to connect
@@ -71,37 +82,61 @@ onMounted(async () => {
       throw new Error('Socket connection timeout')
     }
 
-    // Check if we're already in this room (page reload scenario)
+    // Join the room via WebSocket
+    const response = await joinRoom(props.code)
+
+    // Check if we have cached data for this room
     const isRejoining = roomStore.roomId === props.code && roomStore.mapImageDataUrl
 
-    if (isRejoining) {
-      // Still need to join the socket room
-      const response = await joinRoom(props.code)
-
-      // Update role in case ownership changed
-      roomStore.isOwner = response.role === 'owner'
-
-      // If owner, reload history stack from server
-      if (response.historyStack) {
-        roomStore.setHistoryStack(response.historyStack)
+    if (isRejoining && response.snapshotHash) {
+      // Validate localStorage against server hash
+      const localSnapshot = {
+        mapFile: roomStore.mapImageDataUrl,
+        mapAspectRatio: roomStore.mapAspectRatio,
+        markers: roomStore.markers,
+        revealShapes: roomStore.revealShapes,
+        drawings: roomStore.drawings,
+        initiativeRounds: roomStore.initiativeRounds,
+        initiativeAssignments: roomStore.markerRoundAssignments
       }
-    } else {
-      // Join the room via WebSocket
-      const response = await joinRoom(props.code)
+      const localHash = simpleHash(JSON.stringify(localSnapshot))
 
-      // Set room data
+      if (localHash !== response.snapshotHash) {
+        console.log('[MapView] localStorage stale, reloading from server')
+        // Stale data - reload from server
+        roomStore.setRoomSnapshot(response.snapshot)
+      } else {
+        console.log('[MapView] localStorage valid, using cached data')
+      }
+    } else if (!isRejoining) {
+      // First time joining this room - load from server
       roomStore.roomId = props.code
-      roomStore.isOwner = response.role === 'owner'
       roomStore.setRoomSnapshot(response.snapshot)
+    }
 
-      // If owner, load history stack
-      if (response.historyStack) {
-        roomStore.setHistoryStack(response.historyStack)
-      }
+    // Update role (might have changed)
+    roomStore.isOwner = response.role === 'owner'
+
+    // If owner, load history stack
+    if (response.historyStack) {
+      roomStore.setHistoryStack(response.historyStack)
     }
   } catch (error) {
     console.error('[MapView] Failed to join room:', error)
-    alert('Failed to join room: ' + error.message)
+
+    // Provide user-friendly error messages
+    let errorMessage = 'Failed to join room'
+    if (error.message.includes('not found')) {
+      errorMessage = 'Room not found. It may have been deleted or the code is incorrect.'
+    } else if (error.message.includes('timeout')) {
+      errorMessage = 'Connection timeout. Please check your internet connection.'
+    } else if (error.message.includes('not connected')) {
+      errorMessage = 'Could not connect to server. Please try again.'
+    } else {
+      errorMessage = error.message
+    }
+
+    alert(errorMessage)
     router.push('/')
   }
 })
