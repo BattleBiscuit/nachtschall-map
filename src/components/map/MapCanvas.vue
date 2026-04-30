@@ -8,7 +8,7 @@
     @mouseup="handleMouseUp"
     @mouseleave="handleMouseLeave"
     @dblclick="handleMapDoubleClick"
-    @contextmenu="handleMapRightClick"
+    @contextmenu.prevent
   >
     <!-- SVG for map image + D3 zoom -->
     <svg
@@ -192,7 +192,7 @@ function handleMouseMove(event) {
     r: revealRadius.value
   }
 
-  // Check if we're dragging (left button down and moved)
+  // Check if we're dragging with left button (reveal fog)
   if (dragStartPos.value && event.buttons === 1 && activeTool.value !== 'draw') {
     const dx = pos.x - dragStartPos.value.x
     const dy = pos.y - dragStartPos.value.y
@@ -208,14 +208,36 @@ function handleMouseMove(event) {
       drawReveal(pos.x, pos.y, true)
     }
   }
+
+  // Check if we're dragging with right button (add fog)
+  if (dragStartPos.value && event.buttons === 2 && activeTool.value !== 'draw') {
+    const dx = pos.x - dragStartPos.value.x
+    const dy = pos.y - dragStartPos.value.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+
+    // If moved more than 5 units, start dragging
+    if (distance > 5) {
+      isDragging.value = true
+    }
+
+    // If dragging, add fog
+    if (isDragging.value) {
+      drawFog(pos.x, pos.y, true)
+    }
+  }
 }
 
 function handleMouseDown(event) {
-  // Only handle left button (button === 0)
-  if (event.button !== 0) return
+  // Handle left button (button === 0) or right button (button === 2)
+  if (event.button !== 0 && event.button !== 2) return
 
   // Don't start fog drag if we're dragging a marker
   if (isMarkerDragging.value) return
+
+  // Right button - prevent context menu and prepare for fog drag
+  if (event.button === 2) {
+    event.preventDefault()
+  }
 
   const pos = getMousePosition(event)
 
@@ -233,8 +255,8 @@ function handleMouseDown(event) {
 }
 
 function handleMouseUp(event) {
-  // Only handle left button
-  if (event.button !== 0) return
+  // Handle left button (button === 0) or right button (button === 2)
+  if (event.button !== 0 && event.button !== 2) return
 
   const pos = getMousePosition(event)
 
@@ -252,7 +274,12 @@ function handleMouseUp(event) {
 
     // If distance is small (< 5 pixels), treat as click not drag
     if (distance < 5) {
-      handleSingleClick(event)
+      if (event.button === 0) {
+        handleSingleClick(event)
+      } else if (event.button === 2) {
+        // Right click without drag - add single fog shape
+        drawFog(pos.x, pos.y, false)
+      }
     }
   }
 
@@ -321,16 +348,6 @@ function handleMapDoubleClick(event) {
     type: 'markerAdd',
     data: marker
   })
-
-}
-
-function handleMapRightClick(event) {
-  event.preventDefault()
-
-  const pos = getMousePosition(event)
-
-  // Right click - add fog
-  drawFog(pos.x, pos.y)
 
 }
 
