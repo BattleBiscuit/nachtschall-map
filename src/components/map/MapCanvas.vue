@@ -378,12 +378,6 @@ function handleSingleClick(event) {
     if (clickCount.value === 1) {
       const pos = getMousePosition(event)
 
-      console.log('[MapCanvas] Single click detected:', {
-        pos,
-        hasPingPermission: checkPermission('ping', 'send'),
-        hasFogPermission: checkPermission('fog', 'reveal')
-      })
-
       // Player ping takes priority
       if (checkPermission('ping', 'send')) {
         sendPing(pos.x, pos.y)
@@ -405,8 +399,6 @@ function sendPing(x, y) {
     color: currentMarkerColor.value,
     timestamp: Date.now()
   }
-
-  console.log('[MapCanvas] Sending ping:', ping)
 
   // Add to local state
   roomStore.addPing(ping)

@@ -149,7 +149,6 @@ export const useRoomStore = defineStore('room', {
 
     // Ping actions
     addPing(ping) {
-      console.log('[room] Adding ping:', ping)
       this.activePings.push(ping)
 
       // Auto-remove after 2 seconds
@@ -159,7 +158,6 @@ export const useRoomStore = defineStore('room', {
     },
 
     removePing(pingId) {
-      console.log('[room] Removing ping:', pingId)
       this.activePings = this.activePings.filter(p => p.id !== pingId)
     },
 

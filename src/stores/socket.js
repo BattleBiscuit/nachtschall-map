@@ -109,7 +109,6 @@ export const useSocketStore = defineStore('socket', {
         return
       }
 
-      console.log('[socket] Emitting ping:', roomId, data)
       this.socket.emit('ping', roomId, data)
     },
 
@@ -122,11 +121,7 @@ export const useSocketStore = defineStore('socket', {
 
     onPing(callback) {
       if (this.socket) {
-        console.log('[socket] Registering ping listener')
-        this.socket.on('ping', (data) => {
-          console.log('[socket] Received ping:', data)
-          callback(data)
-        })
+        this.socket.on('ping', callback)
       }
     },
 

@@ -307,8 +307,6 @@ io.on('connection', (socket) => {
     room.participants[socket.id] = role;
     await setRoom(roomId, room);
 
-    console.log(`[joinRoom] ${socket.id} joined as ${role}`)
-
     // Calculate snapshot hash for cache validation
     const snapshotData = {
       mapUrl: room.snapshot.mapUrl,
@@ -422,23 +420,13 @@ io.on('connection', (socket) => {
   // Viewer pings: any participant can send a temporary ping (visible dot on map)
   socket.on('ping', async (roomId, data) => {
     const room = await getRoom(roomId);
-    if (!room) {
-      console.log(`[ping] Room ${roomId} not found`)
-      return;
-    }
-
-    const userRole = room.participants?.[socket.id] || room.viewerRole || 'viewer';
-    const hasPermissionToPing = hasPermission(socket.id, room, 'ping');
-
-    console.log(`[ping] ${socket.id} (role: ${userRole}) attempting ping - permission: ${hasPermissionToPing}`)
+    if (!room) return;
 
     // Check if sender has ping permission
-    if (!hasPermissionToPing) {
-      console.log(`[ping] DENIED - ${socket.id} does not have ping permission`)
+    if (!hasPermission(socket.id, room, 'ping')) {
       return; // Silently ignore unauthorized pings
     }
 
-    console.log(`[ping] Broadcasting ping from ${socket.id} to room ${roomId}`)
     // Broadcast ping to everyone in the room (including sender)
     io.to(roomId).emit('ping', Object.assign({}, data, { from: socket.id }));
   });
