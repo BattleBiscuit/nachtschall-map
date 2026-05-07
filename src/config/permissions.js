@@ -30,6 +30,9 @@ export const DEFAULT_PERMISSIONS = {
     tools: false,       // Can toggle draw tool, initiative tracker
     reset: false,       // Can reset map
     colorPicker: false  // Can access color picker
+  },
+  ping: {
+    send: false     // Can send pings on map
   }
 }
 
@@ -62,6 +65,9 @@ export const ROLE_PRESETS = {
       tools: true,
       reset: true,
       colorPicker: true
+    },
+    ping: {
+      send: true
     }
   },
 
@@ -90,6 +96,9 @@ export const ROLE_PRESETS = {
       tools: false,
       reset: false,
       colorPicker: false
+    },
+    ping: {
+      send: false
     }
   },
 
@@ -118,6 +127,9 @@ export const ROLE_PRESETS = {
       tools: false,
       reset: false,
       colorPicker: true
+    },
+    ping: {
+      send: true
     }
   }
 }

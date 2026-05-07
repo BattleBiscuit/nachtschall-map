@@ -216,8 +216,8 @@ function hasPermission(socketId, room, actionType) {
   // Owner has all permissions
   if (socketId === room.owner) return true;
 
-  // Get viewer role from room config (default to 'viewer')
-  const viewerRole = room.viewerRole || 'viewer';
+  // Get participant's individual role (default to 'viewer')
+  const userRole = room.participants?.[socketId] || room.viewerRole || 'viewer';
 
   // Permission matrix - defines which actions each role can perform
   const permissions = {
@@ -233,10 +233,11 @@ function hasPermission(socketId, room, actionType) {
       initiativeUpdate: false,
       reset: false,
       fogOptimize: false,
-      setViewerRole: false
+      setViewerRole: false,
+      ping: false
     },
     player: {
-      // Color picker only (handled in frontend) - no backend actions
+      // Color picker and ping only - no backend actions except ping
       setMap: false,
       reveal: false,
       fog: false,
@@ -247,11 +248,12 @@ function hasPermission(socketId, room, actionType) {
       initiativeUpdate: false,
       reset: false,
       fogOptimize: false,
-      setViewerRole: false
+      setViewerRole: false,
+      ping: true
     }
   };
 
-  return permissions[viewerRole]?.[actionType] || false;
+  return permissions[userRole]?.[actionType] || false;
 }
 
 // ── Socket.IO Event Handlers ─────────────────────────────────────────────────
@@ -263,6 +265,7 @@ io.on('connection', (socket) => {
     const room = {
       owner: socket.id,
       viewerRole: 'viewer', // Default viewer role
+      participants: { [socket.id]: 'owner' }, // Track individual user roles
       snapshot: payload && payload.snapshot ? payload.snapshot : { mapUrl: null, mapAspectRatio: 1, revealShapes: [], markers: [], drawings: [] }
     };
     await setRoom(roomId, room);
@@ -296,9 +299,15 @@ io.on('connection', (socket) => {
     } else if (!ownerInRoom || !ownerSocketExists) {
       // Owner disconnected - promote this connection to owner
       room.owner = socket.id;
-      await setRoom(roomId, room);
       role = 'owner';
     }
+
+    // Store participant role
+    if (!room.participants) room.participants = {};
+    room.participants[socket.id] = role;
+    await setRoom(roomId, room);
+
+    console.log(`[joinRoom] ${socket.id} joined as ${role}`)
 
     // Calculate snapshot hash for cache validation
     const snapshotData = {
@@ -313,7 +322,7 @@ io.on('connection', (socket) => {
     const snapshotHash = simpleHash(JSON.stringify(snapshotData));
 
     // Return the role (already set correctly above)
-    if (cb) cb({ ok: true, role: role, snapshot: room.snapshot, snapshotHash });
+    if (cb) cb({ ok: true, role: role, snapshot: room.snapshot, snapshotHash, viewerRole: room.viewerRole });
 
     // Notify owner about new participant (only if not owner)
     if (role !== 'owner') {
@@ -414,6 +423,12 @@ io.on('connection', (socket) => {
   socket.on('ping', async (roomId, data) => {
     const room = await getRoom(roomId);
     if (!room) return;
+
+    // Check if sender has ping permission
+    if (!hasPermission(socket.id, room, 'ping')) {
+      return; // Silently ignore unauthorized pings
+    }
+
     // Broadcast ping to everyone in the room (including sender)
     io.to(roomId).emit('ping', Object.assign({}, data, { from: socket.id }));
   });
@@ -423,17 +438,28 @@ io.on('connection', (socket) => {
     // Check all rooms this socket is in
     for (const roomId of socket.rooms) {
       const room = await getRoom(roomId);
-      if (room && room.owner === socket.id) {
+      if (!room) continue;
+
+      // Remove participant from tracking
+      if (room.participants) {
+        delete room.participants[socket.id];
+      }
+
+      if (room.owner === socket.id) {
         const sids = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
 
         if (sids.length > 1) {
           // Other participants present - promote first viewer to owner
           const newOwner = sids.find(id => id !== socket.id);
           room.owner = newOwner;
+          if (room.participants) {
+            room.participants[newOwner] = 'owner';
+          }
           await setRoom(roomId, room);
           io.to(roomId).emit('ownerChanged', { newOwner });
         } else {
           // No other participants - keep room for 30s to allow owner reconnection
+          await setRoom(roomId, room);
           setTimeout(async () => {
             const currentRoom = await getRoom(roomId);
             if (currentRoom) {
@@ -444,6 +470,9 @@ io.on('connection', (socket) => {
             }
           }, 30000); // 30 second grace period
         }
+      } else {
+        // Non-owner participant left, just update room
+        await setRoom(roomId, room);
       }
     }
   });

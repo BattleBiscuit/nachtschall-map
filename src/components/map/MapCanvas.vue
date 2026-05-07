@@ -82,6 +82,13 @@
           @dragEnd="isMarkerDragging = false"
         />
 
+        <!-- Pings (rendered above everything) -->
+        <MapPing
+          v-for="ping in activePings"
+          :key="ping.id"
+          :ping="ping"
+        />
+
         <!-- Brush indicator - inside transformed group -->
         <circle
           v-if="brushIndicator"
@@ -105,7 +112,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import * as d3 from 'd3'
 import { useRoomStore } from '@/stores/room'
 import { useSocketStore } from '@/stores/socket'
@@ -115,6 +122,7 @@ import { useD3Map } from '@/composables/useD3Map'
 import { useFogCanvas } from '@/composables/useFogCanvas'
 import { useTornEdges } from '@/composables/useTheme'
 import MapMarker from './MapMarker.vue'
+import MapPing from './MapPing.vue'
 import MarkerNameDialog from './MarkerNameDialog.vue'
 
 const roomStore = useRoomStore()
@@ -147,6 +155,7 @@ const currentMarkerColor = computed(() => uiStore.currentMarkerColor)
 const markers = computed(() => (roomStore.markers || []).filter(m => m && m.id))
 const drawings = computed(() => roomStore.drawings || [])
 const revealShapes = computed(() => roomStore.revealShapes || [])
+const activePings = computed(() => roomStore.activePings || [])
 const activeTool = computed(() => uiStore.activeTool)
 
 // Generate torn edge polygon points in viewBox coordinates
@@ -184,6 +193,19 @@ onMounted(() => {
   setTimeout(() => {
     initD3Zoom()
   }, 100)
+
+  // Register ping listener
+  socketStore.onPing((pingData) => {
+    roomStore.addPing({
+      ...pingData,
+      timestamp: Date.now()
+    })
+  })
+})
+
+onUnmounted(() => {
+  // Cleanup ping listener
+  socketStore.offPing()
 })
 
 async function handleImageLoad(event) {
@@ -354,15 +376,48 @@ function handleSingleClick(event) {
 
   clickTimeout.value = setTimeout(() => {
     if (clickCount.value === 1) {
-      // Check permission before revealing fog
-      if (!checkPermission('fog', 'reveal')) return
-
       const pos = getMousePosition(event)
-      // Single click - reveal fog
-      drawReveal(pos.x, pos.y, false)
+
+      console.log('[MapCanvas] Single click detected:', {
+        pos,
+        hasPingPermission: checkPermission('ping', 'send'),
+        hasFogPermission: checkPermission('fog', 'reveal')
+      })
+
+      // Player ping takes priority
+      if (checkPermission('ping', 'send')) {
+        sendPing(pos.x, pos.y)
+      }
+      // Otherwise reveal fog (if permitted)
+      else if (checkPermission('fog', 'reveal')) {
+        drawReveal(pos.x, pos.y, false)
+      }
     }
     clickCount.value = 0
   }, 250) // Wait 250ms to detect double-click
+}
+
+function sendPing(x, y) {
+  const ping = {
+    id: `ping-${Date.now()}`,
+    x,
+    y,
+    color: currentMarkerColor.value,
+    timestamp: Date.now()
+  }
+
+  console.log('[MapCanvas] Sending ping:', ping)
+
+  // Add to local state
+  roomStore.addPing(ping)
+
+  // Broadcast to other clients
+  socketStore.emitPing(roomStore.roomId, {
+    id: ping.id,
+    x: ping.x,
+    y: ping.y,
+    color: ping.color
+  })
 }
 
 function handleMapDoubleClick(event) {

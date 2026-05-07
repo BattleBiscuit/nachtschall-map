@@ -25,7 +25,10 @@ export const useRoomStore = defineStore('room', {
     lastReceivedFogShape: null,
 
     // For triggering fog mask rebuild (e.g., server sync)
-    fogRebuildTrigger: 0
+    fogRebuildTrigger: 0,
+
+    // Pings (temporary visual markers)
+    activePings: []
   }),
 
   actions: {
@@ -144,6 +147,22 @@ export const useRoomStore = defineStore('room', {
       }
     },
 
+    // Ping actions
+    addPing(ping) {
+      console.log('[room] Adding ping:', ping)
+      this.activePings.push(ping)
+
+      // Auto-remove after 2 seconds
+      setTimeout(() => {
+        this.removePing(ping.id)
+      }, 2000)
+    },
+
+    removePing(pingId) {
+      console.log('[room] Removing ping:', pingId)
+      this.activePings = this.activePings.filter(p => p.id !== pingId)
+    },
+
     // Clear room (on leaving)
     clearRoom() {
       this.roomId = null
@@ -157,6 +176,7 @@ export const useRoomStore = defineStore('room', {
       this.drawingIdCounter = 0
       this.initiativeRounds = 3
       this.markerRoundAssignments = {}
+      this.activePings = []
     },
 
     // IndexedDB persistence for large data
