@@ -64,6 +64,10 @@ function handleGoHome() {
   flex-shrink: 0;
 }
 
+.home-button :deep(.seal-icon) {
+  font-size: 2rem;
+}
+
 .header-content {
   flex: 1;
   display: flex;

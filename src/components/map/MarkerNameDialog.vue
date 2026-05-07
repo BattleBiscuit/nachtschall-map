@@ -20,10 +20,10 @@
               Remove
             </WaxSealButton>
             <div class="spacer"></div>
-            <WaxSealButton @click="handleCancel" color="gray" size="small">
+            <WaxSealButton @click="handleCancel" color="gray" size="small" icon="✕">
               Cancel
             </WaxSealButton>
-            <WaxSealButton @click="handleConfirm" color="green" size="small">
+            <WaxSealButton @click="handleConfirm" color="green" size="small" icon="✓">
               Save
             </WaxSealButton>
           </div>
