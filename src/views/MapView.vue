@@ -1,6 +1,6 @@
 <template>
-  <div class="map-view">
-    <!-- Grid Layout -->
+  <!-- Owner View: Grid layout with sidebars -->
+  <div v-if="isOwner" class="map-view owner-layout">
     <div class="grid-container">
       <!-- Left Sidebar -->
       <div class="grid-left">
@@ -18,6 +18,24 @@
       <div class="grid-right">
         <InitiativeTracker />
       </div>
+    </div>
+  </div>
+
+  <!-- Viewer/Player View: Fullscreen map with floating controls -->
+  <div v-else class="map-view viewer-layout">
+    <!-- Full viewport map -->
+    <div class="map-container">
+      <MapCanvas />
+    </div>
+
+    <!-- Floating overlay controls -->
+    <div class="floating-controls top-left">
+      <RoomInfo />
+      <MapControls v-if="userRole === 'player'" />
+    </div>
+
+    <div class="floating-controls top-right">
+      <InitiativeTracker />
     </div>
   </div>
 </template>
@@ -45,6 +63,10 @@ const router = useRouter()
 const roomStore = useRoomStore()
 const permissionsStore = usePermissionsStore()
 const { joinRoom, isConnected } = useSocket()
+
+// Computed properties for layout switching
+const isOwner = computed(() => roomStore.isOwner)
+const userRole = computed(() => roomStore.userRole)
 
 // Simple hash function for snapshot validation
 function simpleHash(str) {
@@ -225,24 +247,68 @@ onMounted(async () => {
   overflow-y: auto;
 }
 
+/* Viewer Layout - Fullscreen map with floating controls */
+.viewer-layout {
+  position: relative;
+}
+
+.viewer-layout .map-container {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  right: 1rem;
+  bottom: 1rem;
+  overflow: hidden;
+}
+
+.floating-controls {
+  position: absolute;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  pointer-events: auto;
+}
+
+.floating-controls.top-left {
+  top: 1rem;
+  left: 1rem;
+}
+
+.floating-controls.top-right {
+  top: 1rem;
+  right: 1rem;
+}
+
+/* Make controls semi-transparent when not hovered */
+.floating-controls {
+  opacity: 0.95;
+  transition: opacity 0.3s ease;
+}
+
+.floating-controls:hover {
+  opacity: 1;
+}
+
+/* Owner Layout Media Queries */
 @media (max-width: 768px) {
-  .grid-container {
+  .owner-layout .grid-container {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr auto;
     padding: 1rem;
   }
 
-  .grid-left {
+  .owner-layout .grid-left {
     grid-column: 1;
     grid-row: 1;
   }
 
-  .grid-map {
+  .owner-layout .grid-map {
     grid-column: 1;
     grid-row: 2;
   }
 
-  .grid-right {
+  .owner-layout .grid-right {
     grid-column: 1;
     grid-row: 3;
   }
