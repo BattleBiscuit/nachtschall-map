@@ -26,6 +26,12 @@ export function useD3Map(svgRef, mapGroupRef) {
     const mapWidth = viewBox.width
     const mapHeight = viewBox.height
 
+    // Start at zoom level 1 (full width, ignore height)
+    const initialScale = 1
+
+    // Update the store's initialZoom value
+    uiStore.setInitialZoom(initialScale)
+
     // Create zoom behavior with fixed minimum
     zoom = d3.zoom()
       .scaleExtent([uiStore.minZoom, uiStore.maxZoom])
@@ -52,7 +58,7 @@ export function useD3Map(svgRef, mapGroupRef) {
     // Apply zoom to SVG
     svg.call(zoom)
 
-    // Set initial zoom (identity = scale 1)
+    // Set initial zoom to identity (scale 1)
     svg.call(zoom.transform, d3.zoomIdentity)
 
   }

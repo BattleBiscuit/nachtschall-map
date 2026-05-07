@@ -56,6 +56,10 @@ export const useUiStore = defineStore('ui', {
 
     setZoomTransform(transform) {
       this.currentZoomTransform = transform
+    },
+
+    setInitialZoom(zoom) {
+      this.initialZoom = zoom
     }
   },
 

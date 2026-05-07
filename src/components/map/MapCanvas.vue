@@ -17,7 +17,14 @@
       :viewBox="`0 0 1000 ${1000 / mapAspectRatio}`"
       preserveAspectRatio="xMidYMid meet"
     >
-      <g ref="mapGroup">
+      <!-- Define torn edge clip path -->
+      <defs>
+        <clipPath id="torn-edges">
+          <polygon :points="tornEdgePoints" />
+        </clipPath>
+      </defs>
+
+      <g ref="mapGroup" clip-path="url(#torn-edges)">
         <image
           v-if="mapUrl"
           :href="mapUrl"
@@ -25,18 +32,17 @@
           y="0"
           :width="1000"
           :height="1000 / mapAspectRatio"
-          preserveAspectRatio="xMidYMid meet"
           @load="handleImageLoad"
         />
 
         <!-- Fog canvas embedded in SVG via foreignObject -->
-        <foreignObject x="0" y="0" width="1000" height="1000">
+        <foreignObject x="0" y="0" width="1000" :height="1000 / mapAspectRatio">
           <canvas
             ref="fogCanvas"
             xmlns="http://www.w3.org/1999/xhtml"
             width="1000"
-            height="1000"
-            style="display: block; width: 1000px; height: 1000px;"
+            :height="1000 / mapAspectRatio"
+            :style="`display: block; width: 1000px; height: ${1000 / mapAspectRatio}px;`"
           />
         </foreignObject>
 
@@ -140,6 +146,26 @@ const markers = computed(() => (roomStore.markers || []).filter(m => m && m.id))
 const drawings = computed(() => roomStore.drawings || [])
 const revealShapes = computed(() => roomStore.revealShapes || [])
 const activeTool = computed(() => uiStore.activeTool)
+
+// Generate torn edge polygon points in viewBox coordinates
+const tornEdgePoints = computed(() => {
+  const h = 1000 / mapAspectRatio.value
+  const points = []
+
+  // Top edge - slight irregularities
+  points.push(`20,0`, `100,10`, `250,5`, `400,10`, `600,5`, `800,10`, `980,0`)
+
+  // Right edge
+  points.push(`1000,${h * 0.03}`, `990,${h * 0.15}`, `1000,${h * 0.30}`, `995,${h * 0.50}`, `1000,${h * 0.70}`, `990,${h * 0.85}`, `1000,${h * 0.97}`)
+
+  // Bottom edge
+  points.push(`980,${h}`, `800,${h - 10}`, `600,${h - 5}`, `400,${h - 10}`, `250,${h - 5}`, `100,${h - 10}`, `20,${h}`)
+
+  // Left edge
+  points.push(`0,${h * 0.97}`, `10,${h * 0.85}`, `5,${h * 0.70}`, `10,${h * 0.50}`, `0,${h * 0.30}`, `10,${h * 0.15}`, `0,${h * 0.03}`)
+
+  return points.join(' ')
+})
 
 // Drawing state
 const isDrawing = ref(false)

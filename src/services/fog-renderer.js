@@ -45,12 +45,12 @@ export class FogRenderer {
   }
 
   /**
-   * Resize all canvases to match viewBox (fixed 1000x1000)
+   * Resize all canvases to match viewBox
    */
   resizeCanvases() {
-    // Use full viewBox dimensions (always 1000x1000 for entire container)
+    // Use viewBox dimensions based on map aspect ratio
     const viewBoxWidth = 1000
-    const viewBoxHeight = 1000
+    const viewBoxHeight = 1000 / this.mapAspectRatio
 
     // Canvas renders at viewBox resolution
     this.canvas.width = viewBoxWidth
