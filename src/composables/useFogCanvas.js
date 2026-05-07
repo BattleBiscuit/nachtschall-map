@@ -115,8 +115,6 @@ export function useFogCanvas(canvasRef) {
     const optimized = fogOptimizer.optimizeShapes(currentShapes)
 
     if (optimized.length < currentShapes.length) {
-      console.log(`[useFogCanvas] Optimizing: ${currentShapes.length} → ${optimized.length}`)
-
       // Replace with optimized shapes
       roomStore.revealShapes = optimized
 

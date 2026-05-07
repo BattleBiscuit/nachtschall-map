@@ -24,13 +24,11 @@ export const useSocketStore = defineStore('socket', {
       })
 
       this.socket.on('connect', () => {
-        console.log('[socket] connected', this.socket.id)
         this.isConnected = true
         this.error = null
       })
 
       this.socket.on('disconnect', (reason) => {
-        console.log('[socket] disconnected', reason)
         this.isConnected = false
       })
 
@@ -77,11 +75,9 @@ export const useSocketStore = defineStore('socket', {
 
         this.pendingJoin = true
 
-        console.log('[socket] joinRoom called with:', { roomId, preferredRole })
         this.socket.emit('joinRoom', { roomId, preferredRole }, (response) => {
           this.pendingJoin = false
 
-          console.log('[socket] joinRoom response:', response)
           if (response.ok) {
             resolve({
               role: response.role,

@@ -201,7 +201,6 @@ export const useRoomStore = defineStore('room', {
           this.initiativeRounds = data.initiativeRounds || 3
           this.markerRoundAssignments = data.markerRoundAssignments || {}
 
-          console.log(`[room] Loaded from IndexedDB: ${data.revealShapes.length} fog, ${data.markers.length} markers`)
           return true
         }
 

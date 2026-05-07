@@ -129,11 +129,8 @@ onMounted(async () => {
       const localHash = simpleHash(JSON.stringify(localSnapshot))
 
       if (localHash !== response.snapshotHash) {
-        console.log('[MapView] localStorage stale, reloading from server')
         // Stale data - reload from server
         roomStore.setRoomSnapshot(response.snapshot)
-      } else {
-        console.log('[MapView] localStorage valid, using cached data')
       }
     } else if (!isRejoining) {
       // First time joining this room - load from server
@@ -148,7 +145,6 @@ onMounted(async () => {
     // Initialize permissions based on role
     const role = response.role === 'owner' ? 'owner' : (response.role || 'viewer')
     permissionsStore.loadPermissions(role)
-    console.log('[MapView] Role:', role, 'Permissions loaded')
   } catch (error) {
     console.error('[MapView] Failed to join room:', error)
 

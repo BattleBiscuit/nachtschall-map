@@ -257,8 +257,6 @@ function hasPermission(socketId, room, actionType) {
 // ── Socket.IO Event Handlers ─────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
-  console.log('[ws] connection', socket.id);
-
   // Create a new room with initial snapshot
   socket.on('createRoom', async (payload, cb) => {
     const roomId = makeRoomId();
@@ -269,7 +267,6 @@ io.on('connection', (socket) => {
     };
     await setRoom(roomId, room);
     socket.join(roomId);
-    console.log(`[ws] room ${roomId} created by ${socket.id}`);
     if (cb) cb({ ok: true, roomId });
   });
 
@@ -285,30 +282,22 @@ io.on('connection', (socket) => {
       return;
     }
     socket.join(roomId);
-    console.log(`[ws] ${socket.id} joined ${roomId}, stored owner: ${room.owner}, preferred role: ${preferredRole}`);
 
     // Determine role: owner or viewer
     const roomSockets = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
     const ownerInRoom = roomSockets.includes(room.owner);
     const ownerSocketExists = io.sockets.sockets.has(room.owner);
 
-    console.log(`[ws] room ${roomId} sockets:`, roomSockets, `owner ${room.owner} in room: ${ownerInRoom}, owner socket exists: ${ownerSocketExists}`);
-
     let role = preferredRole; // Start with user's preferred role
 
     if (socket.id === room.owner) {
       // Exact match - this is the owner
       role = 'owner';
-      console.log(`[ws] ${socket.id} is owner (exact match)`);
     } else if (!ownerInRoom || !ownerSocketExists) {
       // Owner disconnected - promote this connection to owner
-      const oldOwner = room.owner;
       room.owner = socket.id;
       await setRoom(roomId, room);
       role = 'owner';
-      console.log(`[ws] owner of ${roomId} updated from ${oldOwner} to ${socket.id} (ownerInRoom: ${ownerInRoom}, ownerSocketExists: ${ownerSocketExists})`);
-    } else {
-      console.log(`[ws] ${socket.id} joining as ${preferredRole}`);
     }
 
     // Calculate snapshot hash for cache validation
@@ -352,7 +341,6 @@ io.on('connection', (socket) => {
         actionType: action.type,
         reason: 'Insufficient permissions'
       });
-      console.log(`[action] denied ${action.type} from ${socket.id} in ${roomId}`);
       return;
     }
 
@@ -398,7 +386,6 @@ io.on('connection', (socket) => {
       case 'fogOptimize':
         // Replace entire revealShapes with optimized version
         room.snapshot.revealShapes = action.data.shapes;
-        console.log(`[action] Fog optimized to ${action.data.shapes.length} shapes`);
         break;
       case 'reset':
         room.snapshot.revealShapes = [];
@@ -410,7 +397,6 @@ io.on('connection', (socket) => {
       case 'setViewerRole':
         // Update the viewer role for this room
         room.viewerRole = action.data.viewerRole;
-        console.log(`[action] Room ${roomId} viewerRole set to ${room.viewerRole}`);
         break;
       default:
         // unknown actions stored in history maybe
@@ -446,17 +432,14 @@ io.on('connection', (socket) => {
           room.owner = newOwner;
           await setRoom(roomId, room);
           io.to(roomId).emit('ownerChanged', { newOwner });
-          console.log(`[ws] owner of ${roomId} changed to ${newOwner}`);
         } else {
           // No other participants - keep room for 30s to allow owner reconnection
-          console.log(`[ws] owner of ${roomId} disconnected, keeping room for reconnection`);
           setTimeout(async () => {
             const currentRoom = await getRoom(roomId);
             if (currentRoom) {
               const roomStillExists = io.sockets.adapter.rooms.get(roomId);
               if (!roomStillExists || roomStillExists.size === 0) {
                 await deleteRoom(roomId);
-                console.log(`[ws] room ${roomId} deleted after timeout (no reconnection)`);
               }
             }
           }, 30000); // 30 second grace period
@@ -466,7 +449,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
-    console.log('[ws] disconnect', socket.id);
+    // Connection closed
   });
 });
 

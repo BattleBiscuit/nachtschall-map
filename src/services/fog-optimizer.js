@@ -20,11 +20,7 @@ export class FogOptimizer {
     const mergedReveals = this.mergeOverlapping(revealShapes)
     const mergedFogs = this.mergeOverlapping(fogShapes)
 
-    const result = [...mergedReveals, ...mergedFogs]
-
-    console.log(`[FogOptimizer] ${shapes.length} → ${result.length} shapes (${Math.round((1 - result.length / shapes.length) * 100)}% reduction)`)
-
-    return result
+    return [...mergedReveals, ...mergedFogs]
   }
 
   /**

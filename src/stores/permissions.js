@@ -48,7 +48,6 @@ export const usePermissionsStore = defineStore('permissions', {
     loadPermissions(role) {
       this.currentRole = role
       this.permissions = getRolePermissions(role)
-      console.log(`[Permissions] Loaded ${role} permissions`, this.permissions)
     },
 
     /**
