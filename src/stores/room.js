@@ -184,16 +184,17 @@ export const useRoomStore = defineStore('room', {
       this._saveTimeout = setTimeout(async () => {
         if (!this.roomId) return
 
+        // Explicitly create clean data object (exclude activePings and other ephemeral state)
         const data = {
           roomId: this.roomId,
           mapUrl: this.mapUrl,
-          markers: this.markers,
+          markers: JSON.parse(JSON.stringify(this.markers)), // Deep clone to avoid references
           markerIdCounter: this.markerIdCounter,
-          revealShapes: this.revealShapes,
-          drawings: this.drawings,
+          revealShapes: JSON.parse(JSON.stringify(this.revealShapes)),
+          drawings: JSON.parse(JSON.stringify(this.drawings)),
           drawingIdCounter: this.drawingIdCounter,
           initiativeRounds: this.initiativeRounds,
-          markerRoundAssignments: this.markerRoundAssignments,
+          markerRoundAssignments: JSON.parse(JSON.stringify(this.markerRoundAssignments)),
           timestamp: Date.now()
         }
 
