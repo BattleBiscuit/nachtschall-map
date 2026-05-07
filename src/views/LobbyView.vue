@@ -37,6 +37,13 @@
             @input="joinRoomCode = joinRoomCode.toUpperCase()"
           />
 
+          <FormGroup
+            v-model="joinAsRole"
+            type="select"
+            label="Join as"
+            :options="roleOptions"
+          />
+
           <div class="form-actions">
             <WaxSealButton
               type="submit"
@@ -136,8 +143,14 @@ const activeTab = ref('join')
 
 // Join form state
 const joinRoomCode = ref('')
+const joinAsRole = ref('viewer')
 const joinError = ref('')
 const isJoining = ref(false)
+
+const roleOptions = ref([
+  { value: 'viewer', label: 'Viewer (Read-only)' },
+  { value: 'player', label: 'Player (Can select colors)' }
+])
 
 // Create form state
 const selectedMap = ref('')
@@ -195,8 +208,10 @@ async function handleJoinRoom() {
   isJoining.value = true
 
   try {
-    await joinRoom(joinRoomCode.value)
-    // Navigate to map view
+    // Store the selected role in sessionStorage so MapView can use it
+    sessionStorage.setItem('joinAsRole', joinAsRole.value)
+
+    // Navigate to map view (MapView will handle the actual join)
     router.push(`/room/${joinRoomCode.value}`)
   } catch (error) {
     joinError.value = error.message || 'Failed to join room'

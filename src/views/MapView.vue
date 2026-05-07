@@ -26,6 +26,7 @@
 import { onMounted, defineProps, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
+import { usePermissionsStore } from '@/stores/permissions'
 import { useSocket } from '@/composables/useSocket'
 import MapCanvas from '@/components/map/MapCanvas.vue'
 import RoomInfo from '@/components/map/RoomInfo.vue'
@@ -42,6 +43,7 @@ const props = defineProps({
 
 const router = useRouter()
 const roomStore = useRoomStore()
+const permissionsStore = usePermissionsStore()
 const { joinRoom, isConnected } = useSocket()
 
 // Simple hash function for snapshot validation
@@ -82,7 +84,11 @@ onMounted(async () => {
     await roomStore.loadFromIndexedDB(props.code)
 
     // Join the room via WebSocket
-    const response = await joinRoom(props.code)
+    // Check if user selected a role in the lobby (stored in sessionStorage)
+    const preferredRole = sessionStorage.getItem('joinAsRole') || 'viewer'
+    sessionStorage.removeItem('joinAsRole') // Clear after reading
+
+    const response = await joinRoom(props.code, preferredRole)
 
     // Check if we have cached data for this room
     const isRejoining = roomStore.roomId === props.code && roomStore.mapUrl
@@ -115,6 +121,12 @@ onMounted(async () => {
 
     // Update role (might have changed)
     roomStore.isOwner = response.role === 'owner'
+    roomStore.userRole = response.role || 'viewer'
+
+    // Initialize permissions based on role
+    const role = response.role === 'owner' ? 'owner' : (response.role || 'viewer')
+    permissionsStore.loadPermissions(role)
+    console.log('[MapView] Role:', role, 'Permissions loaded')
   } catch (error) {
     console.error('[MapView] Failed to join room:', error)
 

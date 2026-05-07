@@ -1,11 +1,12 @@
 <template>
   <ParchmentContainer
+    v-if="canAccessControls"
     width="240px"
     padding="1rem"
     class="map-controls"
   >
     <!-- Color Palette -->
-    <div class="color-grid">
+    <div v-if="canUseColorPicker" class="color-grid">
       <button
         v-for="color in colors"
         :key="color.value"
@@ -20,10 +21,10 @@
     </div>
 
     <!-- Divider -->
-    <div class="divider"></div>
+    <div v-if="isOwner" class="divider"></div>
 
-    <!-- Brush Size Control -->
-    <div class="brush-container">
+    <!-- Brush Size Control (owner only) -->
+    <div v-if="isOwner" class="brush-container">
       <input
         type="range"
         :min="minRevealRadius"
@@ -39,15 +40,28 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRoomStore } from '@/stores/room'
 import { useUiStore } from '@/stores/ui'
+import { usePermissions } from '@/composables/usePermissions'
 import ParchmentContainer from '@/components/ui/ParchmentContainer.vue'
 
+const roomStore = useRoomStore()
 const uiStore = useUiStore()
+const { can } = usePermissions()
 
 const currentColor = computed(() => uiStore.currentMarkerColor)
 const revealRadius = computed(() => uiStore.revealRadius)
 const minRevealRadius = computed(() => uiStore.minRevealRadius)
 const maxRevealRadius = computed(() => uiStore.maxRevealRadius)
+
+// Permission checks
+const canUseColorPicker = can('mapControls', 'colorPicker')
+const isOwner = computed(() => roomStore.isOwner)
+
+// Show controls if user has any permission
+const canAccessControls = computed(() =>
+  canUseColorPicker.value || isOwner.value
+)
 
 const colors = [
   { value: 'red', label: 'Red', hex: '#e74c3c' },

@@ -4,8 +4,9 @@
     padding="1rem"
     class="left-panel"
   >
-    <div v-if="isOwner" class="button-group">
+    <div v-if="hasAnyTools" class="button-group">
       <WaxSealButton
+        v-if="canDraw"
         :active="activeTool === 'draw'"
         icon="✎"
         color="red"
@@ -13,12 +14,14 @@
         @click="toggleDrawTool"
       />
       <WaxSealButton
+        v-if="canAccessInitiative"
         icon="⚔"
         color="green"
         size="medium"
         @click="toggleInitiativeTracker"
       />
       <WaxSealButton
+        v-if="canReset"
         icon="↻"
         color="red"
         size="medium"
@@ -27,12 +30,12 @@
     </div>
 
     <!-- Help Text -->
-    <div v-if="isOwner" class="help-text">
+    <div v-if="hasAnyTools" class="help-text">
       <span v-if="activeTool === 'draw'" class="help-line">Drag: Draw Path</span>
       <template v-else>
-        <span class="help-line">Click: Reveal Fog</span>
-        <span class="help-line">Double-Click: Add Marker</span>
-        <span class="help-line">Right-Click: Add Fog</span>
+        <span v-if="canRevealFog" class="help-line">Click: Reveal Fog</span>
+        <span v-if="canAddMarker" class="help-line">Double-Click: Add Marker</span>
+        <span v-if="canAddFog" class="help-line">Right-Click: Add Fog</span>
       </template>
     </div>
   </ParchmentContainer>
@@ -43,15 +46,32 @@ import { computed } from 'vue'
 import { useRoomStore } from '@/stores/room'
 import { useSocketStore } from '@/stores/socket'
 import { useUiStore } from '@/stores/ui'
+import { usePermissions } from '@/composables/usePermissions'
 import ParchmentContainer from '@/components/ui/ParchmentContainer.vue'
 import WaxSealButton from '@/components/ui/WaxSealButton.vue'
 
 const roomStore = useRoomStore()
 const socketStore = useSocketStore()
 const uiStore = useUiStore()
+const { can } = usePermissions()
 
 const isOwner = computed(() => roomStore.isOwner)
 const activeTool = computed(() => uiStore.activeTool)
+
+// Permission checks
+const canDraw = can('drawings', 'create')
+const canAccessInitiative = computed(() =>
+  can('initiative', 'assign').value || can('initiative', 'manage').value
+)
+const canReset = can('mapControls', 'reset')
+const canRevealFog = can('fog', 'reveal')
+const canAddFog = can('fog', 'add')
+const canAddMarker = can('markers', 'add')
+
+// Show panel if any tools are available
+const hasAnyTools = computed(() =>
+  canDraw.value || canAccessInitiative.value || canReset.value
+)
 
 function toggleDrawTool() {
   if (activeTool.value === 'draw') {

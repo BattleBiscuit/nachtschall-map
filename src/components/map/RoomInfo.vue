@@ -17,14 +17,14 @@
 
       <div class="header-content">
         <h1 class="page-title">{{ roomId }}</h1>
-        <div class="subtitle">{{ isOwner ? 'Owner' : 'Viewer' }}</div>
+        <div class="subtitle">{{ roleLabel }}</div>
       </div>
     </div>
   </ParchmentContainer>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useRoomStore } from '@/stores/room'
 import { useSocketStore } from '@/stores/socket'
@@ -37,6 +37,12 @@ const socketStore = useSocketStore()
 
 const roomId = computed(() => roomStore.roomId)
 const isOwner = computed(() => roomStore.isOwner)
+
+const roleLabel = computed(() => {
+  if (isOwner.value) return 'Owner'
+  if (roomStore.userRole === 'player') return 'Player'
+  return 'Viewer'
+})
 
 function handleGoHome() {
   if (confirm('Leave the room and return to lobby?')) {

@@ -110,6 +110,7 @@ import * as d3 from 'd3'
 import { useRoomStore } from '@/stores/room'
 import { useSocketStore } from '@/stores/socket'
 import { useUiStore } from '@/stores/ui'
+import { usePermissions } from '@/composables/usePermissions'
 import { useD3Map } from '@/composables/useD3Map'
 import { useFogCanvas } from '@/composables/useFogCanvas'
 import { useTornEdges } from '@/composables/useTheme'
@@ -119,6 +120,7 @@ import MarkerNameDialog from './MarkerNameDialog.vue'
 const roomStore = useRoomStore()
 const socketStore = useSocketStore()
 const uiStore = useUiStore()
+const { checkPermission } = usePermissions()
 
 const mapContainer = ref(null)
 const svgElement = ref(null)
@@ -230,8 +232,8 @@ function handleMouseMove(event) {
       isDragging.value = true
     }
 
-    // If dragging, reveal fog
-    if (isDragging.value) {
+    // If dragging, reveal fog (check permission)
+    if (isDragging.value && checkPermission('fog', 'reveal')) {
       drawReveal(pos.x, pos.y, true)
     }
   }
@@ -247,8 +249,8 @@ function handleMouseMove(event) {
       isDragging.value = true
     }
 
-    // If dragging, add fog
-    if (isDragging.value) {
+    // If dragging, add fog (check permission)
+    if (isDragging.value && checkPermission('fog', 'add')) {
       drawFog(pos.x, pos.y, true)
     }
   }
@@ -270,6 +272,9 @@ function handleMouseDown(event) {
 
   // If in draw mode, start drawing
   if (activeTool.value === 'draw') {
+    // Check permission before drawing
+    if (!checkPermission('drawings', 'create')) return
+
     isDrawing.value = true
     drawingPoints.value = [pos]
     currentDrawing.value = `M ${pos.x} ${pos.y}`
@@ -304,8 +309,11 @@ function handleMouseUp(event) {
       if (event.button === 0) {
         handleSingleClick(event)
       } else if (event.button === 2) {
-        // Right click without drag - add single fog shape
-        drawFog(pos.x, pos.y, false)
+        // Check permission before adding fog
+        if (checkPermission('fog', 'add')) {
+          // Right click without drag - add single fog shape
+          drawFog(pos.x, pos.y, false)
+        }
       }
     }
   }
@@ -346,6 +354,9 @@ function handleSingleClick(event) {
 
   clickTimeout.value = setTimeout(() => {
     if (clickCount.value === 1) {
+      // Check permission before revealing fog
+      if (!checkPermission('fog', 'reveal')) return
+
       const pos = getMousePosition(event)
       // Single click - reveal fog
       drawReveal(pos.x, pos.y, false)
@@ -358,6 +369,9 @@ function handleMapDoubleClick(event) {
   event.preventDefault()
   clickCount.value = 0
   clearTimeout(clickTimeout.value)
+
+  // Check permission before adding marker
+  if (!checkPermission('markers', 'add')) return
 
   const pos = getMousePosition(event)  // viewBox coordinates
 
@@ -415,6 +429,15 @@ function finishDrawing() {
     return
   }
 
+  // Check permission before saving drawing
+  if (!checkPermission('drawings', 'create')) {
+    // Reset drawing state
+    isDrawing.value = false
+    drawingPoints.value = []
+    currentDrawing.value = null
+    return
+  }
+
   // Create drawing object
   const drawing = {
     id: `drawing-${Date.now()}`,
@@ -439,6 +462,14 @@ function finishDrawing() {
 }
 
 function handleUpdateMarker(updates) {
+  // Check if this is a move (has x/y) or edit (has name)
+  const isMove = updates.x !== undefined || updates.y !== undefined
+  const isEdit = updates.name !== undefined
+
+  // Check appropriate permission
+  if (isMove && !checkPermission('markers', 'move')) return
+  if (isEdit && !checkPermission('markers', 'edit')) return
+
   roomStore.updateMarker(updates.id, updates)
   socketStore.emitAction(roomStore.roomId, {
     type: 'markerUpdate',
@@ -468,6 +499,9 @@ function handleMarkerRemove() {
 }
 
 function handleRemoveMarker(markerId) {
+  // Check permission before removing marker
+  if (!checkPermission('markers', 'remove')) return
+
   roomStore.removeMarker(markerId)
   socketStore.emitAction(roomStore.roomId, {
     type: 'markerRemove',

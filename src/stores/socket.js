@@ -68,7 +68,7 @@ export const useSocketStore = defineStore('socket', {
     },
 
     // Join an existing room
-    joinRoom(roomId) {
+    joinRoom(roomId, preferredRole = 'viewer') {
       return new Promise((resolve, reject) => {
         if (!this.socket?.connected) {
           reject(new Error('Socket not connected'))
@@ -77,14 +77,17 @@ export const useSocketStore = defineStore('socket', {
 
         this.pendingJoin = true
 
-        this.socket.emit('joinRoom', roomId, (response) => {
+        console.log('[socket] joinRoom called with:', { roomId, preferredRole })
+        this.socket.emit('joinRoom', { roomId, preferredRole }, (response) => {
           this.pendingJoin = false
 
+          console.log('[socket] joinRoom response:', response)
           if (response.ok) {
             resolve({
               role: response.role,
               snapshot: response.snapshot,
-              snapshotHash: response.snapshotHash
+              snapshotHash: response.snapshotHash,
+              viewerRole: response.viewerRole
             })
           } else {
             reject(new Error(response.error || 'Failed to join room'))

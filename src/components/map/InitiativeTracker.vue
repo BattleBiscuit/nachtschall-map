@@ -31,8 +31,8 @@
                   v-for="marker in getMarkersInRound(round)"
                   :key="marker.id"
                   class="marker-token"
-                  draggable="true"
-                  @dragstart="handleDragStart($event, marker)"
+                  :draggable="canAssign"
+                  @dragstart="canAssign && handleDragStart($event, marker)"
                   :title="marker.name || 'Unnamed marker'"
                 >
                   <PokerChip
@@ -56,8 +56,8 @@
                   v-for="marker in unassignedMarkers"
                   :key="marker.id"
                   class="marker-token"
-                  draggable="true"
-                  @dragstart="handleDragStart($event, marker)"
+                  :draggable="canAssign"
+                  @dragstart="canAssign && handleDragStart($event, marker)"
                   :title="marker.name || 'Unnamed marker'"
                 >
                   <PokerChip
@@ -71,7 +71,7 @@
           </div>
         </div>
 
-        <div class="tracker-actions">
+        <div v-if="canManage" class="tracker-actions">
           <WaxSealButton @click="addRound" color="green" size="small" icon="+">
             Round
           </WaxSealButton>
@@ -91,6 +91,7 @@ import { computed } from 'vue'
 import { useRoomStore } from '@/stores/room'
 import { useUiStore } from '@/stores/ui'
 import { useSocketStore } from '@/stores/socket'
+import { usePermissions } from '@/composables/usePermissions'
 import ParchmentContainer from '@/components/ui/ParchmentContainer.vue'
 import WaxSealButton from '@/components/ui/WaxSealButton.vue'
 import PokerChip from '@/components/ui/PokerChip.vue'
@@ -98,6 +99,11 @@ import PokerChip from '@/components/ui/PokerChip.vue'
 const roomStore = useRoomStore()
 const uiStore = useUiStore()
 const socketStore = useSocketStore()
+const { can, checkPermission } = usePermissions()
+
+// Permission checks
+const canAssign = can('initiative', 'assign')
+const canManage = can('initiative', 'manage')
 
 const visible = computed(() => uiStore.showInitiativeTracker)
 const markers = computed(() => roomStore.markers || [])
@@ -132,6 +138,9 @@ function handleDrop(event, round) {
 
   if (!markerId) return
 
+  // Check permission before assigning
+  if (!checkPermission('initiative', 'assign')) return
+
   // Update assignment
   const newAssignments = { ...roomStore.markerRoundAssignments }
 
@@ -159,6 +168,9 @@ function handleDrop(event, round) {
 }
 
 function addRound() {
+  // Check permission before adding round
+  if (!checkPermission('initiative', 'manage')) return
+
   const newRounds = roomStore.initiativeRounds + 1
 
   roomStore.updateInitiative({ rounds: newRounds })
@@ -173,6 +185,9 @@ function addRound() {
 }
 
 function removeRound() {
+  // Check permission before removing round
+  if (!checkPermission('initiative', 'manage')) return
+
   if (roomStore.initiativeRounds <= 1) return
 
   const newRounds = roomStore.initiativeRounds - 1
@@ -200,6 +215,9 @@ function removeRound() {
 }
 
 function resetRounds() {
+  // Check permission before resetting
+  if (!checkPermission('initiative', 'manage')) return
+
   roomStore.updateInitiative({
     rounds: 3,
     assignments: {}

@@ -6,6 +6,7 @@ export const useRoomStore = defineStore('room', {
     // Room metadata
     roomId: null,
     isOwner: false,
+    userRole: 'viewer', // Current user's actual role (viewer, player, or owner)
     mapUrl: null,
     mapAspectRatio: 1,
 

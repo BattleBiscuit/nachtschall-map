@@ -24,6 +24,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import PokerChip from '@/components/ui/PokerChip.vue'
+import { usePermissions } from '@/composables/usePermissions'
 import * as d3 from 'd3'
 
 const props = defineProps({
@@ -39,6 +40,8 @@ const props = defineProps({
 
 const emit = defineEmits(['update', 'remove', 'editName', 'dragStart', 'dragEnd'])
 
+const { checkPermission } = usePermissions()
+
 const labelHeight = 20
 const isDragging = ref(false)
 const tempPosition = ref(null) // Temporary position during drag
@@ -50,6 +53,9 @@ const y = computed(() => tempPosition.value?.y || props.marker.y)
 function handleDragStart(event) {
   // Only drag with left button
   if (event.button !== 0) return
+
+  // Check permission before allowing drag
+  if (!checkPermission('markers', 'move')) return
 
   event.stopPropagation()
   event.preventDefault()
@@ -110,6 +116,9 @@ function handleDragStart(event) {
 
 function handleDoubleClick(event) {
   event.stopPropagation()
+
+  // Check permission before editing name
+  if (!checkPermission('markers', 'edit')) return
 
   // Only handle double-click if we didn't just drag
   if (!isDragging.value) {

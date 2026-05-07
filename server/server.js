@@ -211,6 +211,49 @@ function simpleHash(str) {
   return hash.toString(36);
 }
 
+// Permission validation based on role
+function hasPermission(socketId, room, actionType) {
+  // Owner has all permissions
+  if (socketId === room.owner) return true;
+
+  // Get viewer role from room config (default to 'viewer')
+  const viewerRole = room.viewerRole || 'viewer';
+
+  // Permission matrix - defines which actions each role can perform
+  const permissions = {
+    viewer: {
+      // Completely read-only - no actions allowed
+      setMap: false,
+      reveal: false,
+      fog: false,
+      markerAdd: false,
+      markerRemove: false,
+      markerUpdate: false,
+      drawingAdd: false,
+      initiativeUpdate: false,
+      reset: false,
+      fogOptimize: false,
+      setViewerRole: false
+    },
+    player: {
+      // Color picker only (handled in frontend) - no backend actions
+      setMap: false,
+      reveal: false,
+      fog: false,
+      markerAdd: false,
+      markerRemove: false,
+      markerUpdate: false,
+      drawingAdd: false,
+      initiativeUpdate: false,
+      reset: false,
+      fogOptimize: false,
+      setViewerRole: false
+    }
+  };
+
+  return permissions[viewerRole]?.[actionType] || false;
+}
+
 // ── Socket.IO Event Handlers ─────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
@@ -221,6 +264,7 @@ io.on('connection', (socket) => {
     const roomId = makeRoomId();
     const room = {
       owner: socket.id,
+      viewerRole: 'viewer', // Default viewer role
       snapshot: payload && payload.snapshot ? payload.snapshot : { mapUrl: null, mapAspectRatio: 1, revealShapes: [], markers: [], drawings: [] }
     };
     await setRoom(roomId, room);
@@ -231,14 +275,17 @@ io.on('connection', (socket) => {
 
   // Join an existing room
   // Handles owner reconnection: if owner socket disconnected, promote new connection to owner
-  socket.on('joinRoom', async (roomId, cb) => {
+  socket.on('joinRoom', async (payload, cb) => {
+    const roomId = typeof payload === 'string' ? payload : payload.roomId;
+    const preferredRole = typeof payload === 'object' ? payload.preferredRole : 'viewer';
+
     const room = await getRoom(roomId);
     if (!room) {
       if (cb) cb({ ok: false, error: 'Room not found' });
       return;
     }
     socket.join(roomId);
-    console.log(`[ws] ${socket.id} joined ${roomId}, stored owner: ${room.owner}`);
+    console.log(`[ws] ${socket.id} joined ${roomId}, stored owner: ${room.owner}, preferred role: ${preferredRole}`);
 
     // Determine role: owner or viewer
     const roomSockets = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
@@ -247,7 +294,7 @@ io.on('connection', (socket) => {
 
     console.log(`[ws] room ${roomId} sockets:`, roomSockets, `owner ${room.owner} in room: ${ownerInRoom}, owner socket exists: ${ownerSocketExists}`);
 
-    let role = 'viewer';
+    let role = preferredRole; // Start with user's preferred role
 
     if (socket.id === room.owner) {
       // Exact match - this is the owner
@@ -261,7 +308,7 @@ io.on('connection', (socket) => {
       role = 'owner';
       console.log(`[ws] owner of ${roomId} updated from ${oldOwner} to ${socket.id} (ownerInRoom: ${ownerInRoom}, ownerSocketExists: ${ownerSocketExists})`);
     } else {
-      console.log(`[ws] ${socket.id} joining as viewer`);
+      console.log(`[ws] ${socket.id} joining as ${preferredRole}`);
     }
 
     // Calculate snapshot hash for cache validation
@@ -276,10 +323,11 @@ io.on('connection', (socket) => {
     };
     const snapshotHash = simpleHash(JSON.stringify(snapshotData));
 
-    if (cb) cb({ ok: true, role, snapshot: room.snapshot, snapshotHash });
+    // Return the role (already set correctly above)
+    if (cb) cb({ ok: true, role: role, snapshot: room.snapshot, snapshotHash });
 
-    // Notify owner about new participant (only if this is a viewer joining)
-    if (role === 'viewer') {
+    // Notify owner about new participant (only if not owner)
+    if (role !== 'owner') {
       io.to(room.owner).emit('participantJoined', { id: socket.id });
     }
   });
@@ -292,11 +340,21 @@ io.on('connection', (socket) => {
   });
 
   // Handle owner actions (reveal, fog, markers, drawings, etc.)
-  // Only the room owner can send actions; viewers are read-only
+  // Validate permissions based on role
   socket.on('action', async (roomId, action) => {
     const room = await getRoom(roomId);
     if (!room) return;
-    if (socket.id !== room.owner) return; // ignore non-owner actions
+
+    // Check permission for this action type
+    if (!hasPermission(socket.id, room, action.type)) {
+      // Send error feedback to client
+      socket.emit('actionDenied', {
+        actionType: action.type,
+        reason: 'Insufficient permissions'
+      });
+      console.log(`[action] denied ${action.type} from ${socket.id} in ${roomId}`);
+      return;
+    }
 
     // Apply action to snapshot (basic handling)
     switch (action.type) {
@@ -348,6 +406,11 @@ io.on('connection', (socket) => {
         room.snapshot.drawings = [];
         room.snapshot.initiativeRounds = 3;
         room.snapshot.initiativeAssignments = {};
+        break;
+      case 'setViewerRole':
+        // Update the viewer role for this room
+        room.viewerRole = action.data.viewerRole;
+        console.log(`[action] Room ${roomId} viewerRole set to ${room.viewerRole}`);
         break;
       default:
         // unknown actions stored in history maybe
